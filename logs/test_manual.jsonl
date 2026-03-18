@@ -1,0 +1,6 @@
+{"time_step": 1, "input": {"input_type": "chemical_pulse", "params": {"x": 10, "y": 5, "radius": 10, "intensity": 1.2}, "metadata": {}}}
+{"time_step": 1, "input": {"input_type": "parameter_adjust", "params": {"solar_energy_rate": 1.05}, "metadata": {}}}
+{"time_step": 51, "input": {"input_type": "chemical_pulse", "params": {"x": 0, "y": 5, "radius": 10, "intensity": 1.2}, "metadata": {}}}
+{"time_step": 51, "input": {"input_type": "parameter_adjust", "params": {"solar_energy_rate": 1.1025}, "metadata": {}}}
+{"time_step": 101, "input": {"input_type": "chemical_pulse", "params": {"x": 0, "y": 5, "radius": 10, "intensity": 1.2}, "metadata": {}}}
+{"time_step": 101, "input": {"input_type": "parameter_adjust", "params": {"solar_energy_rate": 1.1576250000000001}, "metadata": {}}}

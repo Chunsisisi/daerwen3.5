@@ -1,0 +1,43 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>WS Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .ok { color: green; }
+    .bad { color: red; }
+  </style>
+</head>
+<body>
+  <h1>WebSocket Test</h1>
+  <div id="status">Connecting...</div>
+  <pre id="log"></pre>
+  <script>
+    const statusEl = document.getElementById('status');
+    const logEl = document.getElementById('log');
+    function log(msg) { logEl.textContent += msg + "\n"; }
+
+    const ws = new WebSocket('ws://localhost:8765');
+    ws.onopen = () => {
+      statusEl.textContent = 'CONNECTED';
+      statusEl.className = 'ok';
+      log('open');
+      ws.send('{"action": "snapshot"}');
+    };
+    ws.onmessage = (ev) => {
+      log('message: ' + ev.data.slice(0, 120));
+    };
+    ws.onerror = (err) => {
+      statusEl.textContent = 'ERROR';
+      statusEl.className = 'bad';
+      log('error: ' + err);
+    };
+    ws.onclose = () => {
+      statusEl.textContent = 'CLOSED';
+      statusEl.className = 'bad';
+      log('close');
+    };
+  </script>
+</body>
+</html>

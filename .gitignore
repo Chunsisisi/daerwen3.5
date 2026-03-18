@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+.venv-win/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+nohup.out
+
+# Temporary files
+*.tmp
+*.bak
+*_backup
+*_old
+
+# Benchmark results (optional - comment out if you want to track)
+# benchmark_results/
+
+# OS
+.DS_Store
+Thumbs.db

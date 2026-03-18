@@ -1,0 +1,1685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌱 DAERWEN3 - 2D自持生态网络实时监控</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1a3e 100%);
+            font-family: 'Segoe UI', 'Microsoft YaHei', Arial, sans-serif;
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        #main-container {
+            display: grid;
+            grid-template-columns: 300px minmax(400px, 1fr) 320px;
+            grid-template-rows: 60px 1fr 60px;
+            height: 100vh;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        #left-panel,
+        #right-panel {
+            max-height: calc(100vh - 90px);
+            min-height: 0;
+            overflow-y: auto;
+        }
+
+        #canvas-container {
+            overflow: hidden;
+            width: 100%;
+        }
+
+        #particle-canvas,
+        #environment-mini {
+            width: 100%;
+            height: 100%;
+        }
+
+        #particle-canvas {
+            height: 100%;
+        }
+
+        .mini-map-container {
+            height: 220px;
+        }
+        }
+
+        @media (max-width: 1200px) {
+            body {
+                overflow: auto;
+                height: auto;
+            }
+            #main-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto auto auto;
+                height: auto;
+            }
+            #left-panel, #canvas-container, #right-panel {
+                grid-column: 1 / -1;
+                max-height: none;
+            }
+            #footer {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+        }
+        
+        .panel {
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #4a90e2;
+            border-radius: 12px;
+            padding: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 30px rgba(74, 144, 226, 0.3);
+        }
+        
+        #header {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 20px;
+        }
+        
+        #logo {
+            font-size: 24px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #4a90e2, #67b26f);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        #connection-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff4444;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.connected {
+            background: #44ff44;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+        
+        #left-panel {
+            grid-row: 2;
+            overflow-y: auto;
+        }
+        
+        #canvas-container {
+            grid-row: 2;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        
+        #particle-canvas {
+            flex: 1;
+            background: rgba(10, 14, 39, 0.9);
+            border: 2px solid #4a90e2;
+            border-radius: 8px;
+            cursor: crosshair;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        .canvas-label {
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            z-index: 10;
+        }
+        
+        #right-panel {
+            grid-row: 2;
+            overflow-y: auto;
+        }
+        
+        #footer {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .stat-label {
+            color: #aaa;
+            font-size: 14px;
+        }
+        
+        .stat-value {
+            color: #4a90e2;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .stat-value.positive {
+            color: #44ff44;
+        }
+        
+        .stat-value.negative {
+            color: #ff4444;
+        }
+        
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #4a90e2;
+            margin: 15px 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #4a90e2;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(74, 144, 226, 0.5);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+
+        .mini-map-container {
+            margin-top: 10px;
+            background: rgba(10, 14, 39, 0.85);
+            border: 1px solid #4a90e2;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        #environment-mini {
+            width: 100%;
+            height: 180px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.1);
+            display: block;
+            background: rgba(0,0,0,0.6);
+        }
+
+        #field-layer-select {
+            width: 100%;
+            margin-bottom: 10px;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid #4a90e2;
+            border-radius: 4px;
+            color: #fff;
+            padding: 6px;
+        }
+        
+        #control-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .emergence-indicator {
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(74, 144, 226, 0.2);
+            border-radius: 8px;
+            border-left: 4px solid #4a90e2;
+        }
+        
+        .emergence-indicator.active {
+            background: rgba(67, 178, 111, 0.2);
+            border-left-color: #44ff44;
+            animation: glow 2s infinite;
+        }
+        
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 10px rgba(68, 255, 68, 0.3); }
+            50% { box-shadow: 0 0 20px rgba(68, 255, 68, 0.6); }
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4a90e2, #67b26f);
+            transition: width 0.3s;
+        }
+        
+        .input-section {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(74, 144, 226, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        
+        .input-group {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .input-group label {
+            font-size: 10px;
+            color: #9aa0c2;
+        }
+        
+        .input-group input,
+        .input-group select {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(74, 144, 226, 0.5);
+            border-radius: 4px;
+            padding: 6px;
+            color: #fff;
+            font-size: 12px;
+        }
+        
+        .input-feedback {
+            font-size: 11px;
+            margin-top: 6px;
+            color: #67b26f;
+        }
+        
+        .recent-inputs {
+            max-height: 140px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(74, 144, 226, 0.3);
+            border-radius: 8px;
+            padding: 8px;
+        }
+        
+        .recent-input-item {
+            border-left: 3px solid #4a90e2;
+            padding-left: 8px;
+            margin-bottom: 6px;
+            font-size: 11px;
+            color: #cfd8ff;
+        }
+        
+        .recent-input-item span {
+            display: block;
+        }
+        
+        .recent-input-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #4a90e2;
+            border-radius: 4px;
+        }
+        
+        /* Particle Tooltip */
+        #particle-tooltip {
+            position: fixed;
+            background: rgba(20, 30, 60, 0.95);
+            border: 2px solid #4a90e2;
+            border-radius: 8px;
+            padding: 12px;
+            color: #e0e0e0;
+            font-size: 11px;
+            pointer-events: none;
+            z-index: 10000;
+            display: none;
+            min-width: 250px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        
+        #particle-tooltip .tooltip-title {
+            font-weight: bold;
+            color: #67b26f;
+            margin-bottom: 8px;
+            font-size: 13px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            padding-bottom: 4px;
+        }
+        
+        #particle-tooltip .tooltip-item {
+            margin: 4px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        #particle-tooltip .tooltip-label {
+            color: #a0a0a0;
+        }
+        
+        #particle-tooltip .tooltip-value {
+            color: #ffffff;
+            font-weight: bold;
+        }
+        
+        #particle-tooltip .genome-display {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(0,0,0,0.4);
+            border-radius: 4px;
+            line-height: 1.6;
+            border: 1px solid rgba(74, 144, 226, 0.3);
+        }
+        
+        #particle-tooltip .genome-display .base-A {
+            color: #ff6b6b;
+            font-weight: bold;
+        }
+        
+        #particle-tooltip .genome-display .base-T {
+            color: #4ecdc4;
+            font-weight: bold;
+        }
+        
+        #particle-tooltip .genome-display .base-G {
+            color: #95e1d3;
+            font-weight: bold;
+        }
+        
+        #particle-tooltip .genome-display .base-C {
+            color: #ffd93d;
+            font-weight: bold;
+        }
+        
+        #particle-tooltip .genome-header {
+            color: #67b26f;
+            font-size: 10px;
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <!-- Particle Tooltip -->
+    <div id="particle-tooltip"></div>
+    <div id="main-container">
+        <!-- Header -->
+        <div id="header" class="panel">
+            <div id="logo">🌱 DAERWEN3 2D生态网络</div>
+            <div id="connection-status">
+                <div class="status-dot" id="status-dot"></div>
+                <span id="status-text">连接中...</span>
+            </div>
+        </div>
+        
+        <!-- Left Panel: System Info -->
+        <div id="left-panel" class="panel">
+            <div class="section-title">📊 系统状态</div>
+            
+            <div class="stat-item">
+                <span class="stat-label">时间步</span>
+                <span class="stat-value" id="time-step">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">存活粒子</span>
+                <span class="stat-value positive" id="alive-particles">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">总能量</span>
+                <span class="stat-value" id="total-energy">0.00</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">最大世代</span>
+                <span class="stat-value" id="max-generation">0</span>
+            </div>
+            
+            <div class="section-title">🧬 进化事件</div>
+            
+            <div class="stat-item">
+                <span class="stat-label">复制事件</span>
+                <span class="stat-value positive" id="replication-events">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">死亡事件</span>
+                <span class="stat-value negative" id="death-events">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">交互事件</span>
+                <span class="stat-value" id="interaction-events">0</span>
+            </div>
+            
+            <div class="section-title">🎯 涌现检测</div>
+            
+            <div class="emergence-indicator" id="emergence-indicator">
+                <div style="font-weight: bold; margin-bottom: 5px;">涌现状态: <span id="emergence-status">监测中</span></div>
+                <div>涌现得分: <span id="emergence-score">0.00</span></div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="emergence-progress" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <div class="stat-item">
+                <span class="stat-label">基因多样性</span>
+                <span class="stat-value" id="genetic-diversity">0.00</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">能量方差</span>
+                <span class="stat-value" id="energy-variance">0.00</span>
+            </div>
+        </div>
+        
+        <!-- Center: Canvas -->
+        <div id="canvas-container">
+            <div style="position: relative; flex: 1;">
+                <div class="canvas-label">粒子分布（颜色=能量）</div>
+                <canvas id="particle-canvas"></canvas>
+            </div>
+        </div>
+        
+        <!-- Right Panel: Details -->
+        <div id="right-panel" class="panel">
+            <div class="section-title">📈 实时数据</div>
+            
+            <div class="stat-item">
+                <span class="stat-label">粒子密度</span>
+                <span class="stat-value" id="particle-density">0.00</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">平均能量</span>
+                <span class="stat-value" id="avg-energy">0.00</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">世代多样性</span>
+                <span class="stat-value" id="gen-diversity">0</span>
+            </div>
+            
+            <div class="section-title">🧬 基因组统计</div>
+            
+            <div class="stat-item">
+                <span class="stat-label">最长基因</span>
+                <span class="stat-value" id="max-genome">0 bp</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">最短基因</span>
+                <span class="stat-value" id="min-genome">0 bp</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">平均基因长度</span>
+                <span class="stat-value" id="avg-genome">0 bp</span>
+            </div>
+            
+            <div class="section-title">⚡ 场指标</div>
+            
+            <div class="stat-item">
+                <span class="stat-label">场平均强度</span>
+                <span class="stat-value" id="atp-concentration">0.00</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">场活跃度</span>
+                <span class="stat-value" id="chemical-activity">0.00</span>
+            </div>
+
+            <div class="section-title">🌐 环境层</div>
+            <select id="field-layer-select">
+                <option value="atp">ATP 能量场</option>
+                <option value="nutrient">营养分布</option>
+                <option value="inhibitor">抑制物分布</option>
+            </select>
+            <div class="mini-map-container">
+                <canvas id="environment-mini"></canvas>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">营养方差</span>
+                <span class="stat-value" id="nutrient-variance">0.00</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">抑制压强</span>
+                <span class="stat-value" id="inhibitor-pressure">0.00</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">平均营养</span>
+                <span class="stat-value" id="avg-nutrient">0.00</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">平均抑制</span>
+                <span class="stat-value" id="avg-inhibitor">0.00</span>
+            </div>
+            
+            <div class="section-title">🔬 物理指标</div>
+            
+            <div class="stat-item">
+                <span class="stat-label">空间方差</span>
+                <span class="stat-value" id="spatial-variance">0.00</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">聚集度</span>
+                <span class="stat-value" id="clustering">0.00</span>
+            </div>
+            
+            <div class="section-title">🎮 速度控制</div>
+            
+            <div style="margin: 10px 0;">
+                <div style="margin-bottom: 5px; display: flex; justify-content: space-between;">
+                    <span>更新间隔:</span>
+                    <span id="speed-display">0ms (最快)</span>
+                </div>
+                <input type="range" id="speed-control" min="0" max="500" value="0" step="10" 
+                       style="width: 100%; accent-color: #4a90e2;">
+                <div style="display: flex; justify-content: space-between; font-size: 10px; color: #888; margin-top: 2px;">
+                    <span>最快</span>
+                    <span>慢</span>
+                </div>
+            </div>
+            
+            <div class="section-title">💡 系统健康</div>
+            
+            <div id="system-health" style="margin-top: 10px;">
+                <div style="margin: 5px 0;">能量循环: <span id="energy-cycle">✓ 正常</span></div>
+                <div style="margin: 5px 0;">种群稳定: <span id="population-stable">✓ 正常</span></div>
+                <div style="margin: 5px 0;">进化活跃: <span id="evolution-active">✓ 正常</span></div>
+            </div>
+
+            <div class="section-title">🛠 外部输入</div>
+            <div class="input-section">
+                <label style="font-size: 11px; color: #9aa0c2;">输入类型</label>
+                <select id="input-type" onchange="updateInputFields()">
+                    <option value="chemical_pulse">化学脉冲</option>
+                    <option value="parameter_adjust">参数调整</option>
+                    <option value="catastrophe">灾难事件</option>
+                </select>
+                
+                <div class="input-group input-field-block" data-type="chemical_pulse">
+                    <div>
+                        <label>X 坐标</label>
+                        <input type="number" id="input-x" value="100" min="0">
+                    </div>
+                    <div>
+                        <label>Y 坐标</label>
+                        <input type="number" id="input-y" value="100" min="0">
+                    </div>
+                    <div>
+                        <label>半径</label>
+                        <input type="number" id="input-radius" value="15" min="1">
+                    </div>
+                    <div>
+                        <label>强度</label>
+                        <input type="number" id="input-intensity" value="1.5" step="0.1">
+                    </div>
+                </div>
+
+                <div class="input-group input-field-block hidden" data-type="parameter_adjust">
+                    <div>
+                        <label>参数名 (如 mutation_rate)</label>
+                        <input type="text" id="input-param-name" placeholder="mutation_rate">
+                    </div>
+                    <div>
+                        <label>新值</label>
+                        <input type="number" id="input-param-value" value="0.02" step="0.001">
+                    </div>
+                </div>
+
+                <div class="input-group input-field-block hidden" data-type="catastrophe">
+                    <div>
+                        <label>事件类型</label>
+                        <select id="input-event-type">
+                            <option value="energy_fluctuation">能量波动</option>
+                            <option value="mass_extinction">大灭绝</option>
+                            <option value="mutation_burst">突变爆发</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button style="width: 100%; margin-top: 8px;" onclick="sendExternalInput()">🚀 发送输入</button>
+                <div class="input-feedback" id="input-feedback"></div>
+            </div>
+
+            <div class="section-title">📡 最近输入</div>
+            <div id="recent-inputs" class="recent-inputs">
+                <div class="recent-input-item" style="color: #999;">暂无输入</div>
+            </div>
+        </div>
+        
+        <!-- Footer: Controls -->
+        <div id="footer" class="panel">
+            <div>
+                <span style="color: #aaa;">帧率: </span>
+                <span id="fps" style="color: #44ff44; font-weight: bold;">0</span> FPS
+                <span style="margin-left: 20px; color: #aaa;">延迟: </span>
+                <span id="latency" style="color: #4a90e2; font-weight: bold;">0</span> ms
+            </div>
+            <div id="control-buttons">
+                <button onclick="togglePause()">⏸️ 暂停</button>
+                <button onclick="resetSystem()">🔄 重置</button>
+                <button onclick="exportData()">💾 导出数据</button>
+                <button onclick="requestSnapshot()">📷 快照</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket connection
+        let ws = null;
+        let isPaused = false;
+        let lastUpdateTime = Date.now();
+        let frameCount = 0;
+        let fpsDisplay = 0;
+        
+        // Canvas elements
+        const particleCanvas = document.getElementById('particle-canvas');
+        const particleCtx = particleCanvas.getContext('2d');
+        const environmentCanvas = document.getElementById('environment-mini');
+        const environmentCtx = environmentCanvas.getContext('2d');
+        const fieldLayerSelect = document.getElementById('field-layer-select');
+        const inputTypeSelect = document.getElementById('input-type');
+        const inputFeedback = document.getElementById('input-feedback');
+        
+        // Connect to WebSocket server (with fallback)
+        const WS_ENDPOINTS = (() => {
+            const endpoints = [];
+            const host = (window.location && window.location.hostname) ? window.location.hostname : '';
+            if (host) endpoints.push(`ws://${host}:8765`);
+            endpoints.push('ws://127.0.0.1:8765');
+            endpoints.push('ws://localhost:8765');
+            // de-dup
+            return [...new Set(endpoints)];
+        })();
+        let wsEndpointIndex = 0;
+        let wsConnectedOnce = false;
+        
+        function connect() {
+            const target = WS_ENDPOINTS[wsEndpointIndex % WS_ENDPOINTS.length];
+            wsEndpointIndex += 1;
+            ws = new WebSocket(target);
+            
+            document.getElementById('status-text').textContent = '连接中';
+            
+            // If connecting hangs, force close to trigger fallback
+            const connectTimeout = setTimeout(() => {
+                if (ws && ws.readyState === WebSocket.CONNECTING) {
+                    try { ws.close(); } catch (e) {}
+                }
+            }, 3000);
+            
+            ws.onopen = () => {
+                clearTimeout(connectTimeout);
+                wsConnectedOnce = true;
+                console.log('✅ WebSocket connected', target);
+                document.getElementById('status-dot').classList.add('connected');
+                document.getElementById('status-text').textContent = '已连接';
+            };
+            
+            ws.onmessage = (event) => {
+                const payload = JSON.parse(event.data);
+                
+                if (payload.type === 'input_ack') {
+                    setInputFeedback('输入已应用 (step ' + payload.time_step + ')', true);
+                    return;
+                }
+                
+                if (payload.type === 'error') {
+                    setInputFeedback(payload.message || '输入失败', false);
+                    return;
+                }
+                
+                const data = payload.type === 'snapshot' ? payload.data : payload;
+                if (payload.type === 'snapshot') {
+                    setInputFeedback('已获取系统快照', true);
+                }
+                
+                // 速度控制：检查是否应该渲染
+                const now = Date.now();
+                if (now - lastRenderTime < renderInterval) {
+                    return;  // 跳过本次渲染
+                }
+                lastRenderTime = now;
+                
+                updateVisualization(data);
+                updateStats(data);
+                
+                // Calculate FPS
+                frameCount++;
+                if (now - lastUpdateTime > 1000) {
+                    fpsDisplay = Math.round(frameCount * 1000 / (now - lastUpdateTime));
+                    document.getElementById('fps').textContent = fpsDisplay;
+                    frameCount = 0;
+                    lastUpdateTime = now;
+                }
+                
+                // Calculate latency
+                const latency = Date.now() - (data.timestamp || Date.now());
+                document.getElementById('latency').textContent = Math.abs(latency);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('❌ WebSocket error:', error);
+            };
+            
+            ws.onclose = () => {
+                clearTimeout(connectTimeout);
+                console.log('🔌 WebSocket disconnected');
+                document.getElementById('status-dot').classList.remove('connected');
+                document.getElementById('status-text').textContent = '断开连接';
+                
+                // Try to reconnect after 2 seconds (cycle endpoints)
+                setTimeout(connect, 2000);
+            };
+        }
+        
+        // Store particle data globally for hover detection
+        let currentParticleData = null;
+        let worldScale = 1;
+        
+        // Viewport control
+        let viewportOffset = { x: 0, y: 0 };
+        let viewportZoom = 1.0;
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let lastMousePos = { x: 0, y: 0 };
+        
+        function resizeCanvasToDisplaySize(canvas) {
+            if (!canvas) return;
+            const dpr = window.devicePixelRatio || 1;
+            const displayWidth = Math.floor(canvas.clientWidth * dpr);
+            const displayHeight = Math.floor(canvas.clientHeight * dpr);
+            if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+                canvas.width = displayWidth;
+                canvas.height = displayHeight;
+            }
+        }
+
+        function resizeAllCanvases() {
+            resizeCanvasToDisplaySize(particleCanvas);
+            resizeCanvasToDisplaySize(environmentCanvas);
+        }
+        window.addEventListener('resize', resizeAllCanvases);
+
+        // Movement tracking
+        let particleHistory = new Map();  // 粒子ID -> 历史位置
+        const historyLength = 5;  // 保留5个历史位置
+        
+        // Speed control
+        let renderInterval = 0;  // 渲染间隔(ms)
+        let lastRenderTime = 0;
+        let lastFrameData = null;
+        if (fieldLayerSelect) {
+            fieldLayerSelect.addEventListener('change', () => {
+                if (lastFrameData) {
+                    renderEnvironmentMap(lastFrameData);
+                }
+            });
+        }
+        
+    function updateVisualization(data) {
+        if (!data || !data.particles || !data.chemical_field || !data.chemical_field.shape) return;
+        resizeCanvasToDisplaySize(particleCanvas);
+        
+        const worldSize = data.chemical_field.shape[0];
+        if (!worldSize || worldSize <= 0) {
+            return;
+        }
+        const canvasWidth = particleCanvas.width;
+        const canvasHeight = particleCanvas.height;
+        const scale = (canvasWidth / worldSize) * viewportZoom;
+        worldScale = scale;
+        
+        // Store particle data for hover detection
+        currentParticleData = data.particles;
+        lastFrameData = data;
+            
+            // 清理已死亡粒子的历史轨迹（防止ID复用导致跨区域连线）
+            const currentIds = new Set(data.particles.ids || []);
+            const historyEntries = particleHistory ? particleHistory.entries() : [];
+            for (const entry of historyEntries) {
+                if (!entry || entry.length < 2) continue;
+                const id = entry[0];
+                const history = entry[1];
+                if (!currentIds.has(id)) {
+                    particleHistory.delete(id);  // 粒子已死亡，删除其历史
+                }
+                if (!history) {
+                    particleHistory.set(id, []);
+                }
+            }
+            
+            // Draw particles - 完全清空画布，避免拖影
+            particleCtx.fillStyle = 'rgba(10, 14, 39, 1.0)';
+            particleCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+            
+            const positions = Array.isArray(data.particles.positions) ? data.particles.positions : [];
+            const energies = Array.isArray(data.particles.energies) ? data.particles.energies : [];
+            const generations = Array.isArray(data.particles.generations) ? data.particles.generations : [];
+            
+            for (let i = 0; i < positions.length; i++) {
+                const pos = positions[i];
+                if (!pos || pos.length < 2) continue;
+                const x = pos[0];
+                const y = pos[1];
+                const energy = (typeof energies[i] === 'number') ? energies[i] : 0;
+                const generation = (typeof generations[i] === 'number') ? generations[i] : 0;
+                const genome = (currentParticleData && currentParticleData.genomes && currentParticleData.genomes[i]) ? currentParticleData.genomes[i] : [];
+                const particleId = (currentParticleData && currentParticleData.ids) ? currentParticleData.ids[i] : i;
+                
+                // 更新粒子历史位置
+                if (!particleHistory.has(particleId)) {
+                    particleHistory.set(particleId, []);
+                }
+                const history = particleHistory.get(particleId);
+                
+                // 检测异常跳跃（边界瞬移或ID复用）
+                if (history.length > 0) {
+                    const lastPos = history[history.length - 1];
+                    if (!lastPos || lastPos.length < 2) {
+                        history.length = 0;
+                    } else {
+                        const lastX = lastPos[0];
+                        const lastY = lastPos[1];
+                    const dx = Math.abs(x - lastX);
+                    const dy = Math.abs(y - lastY);
+                    const worldSize = data.chemical_field.shape[0];
+                    
+                    // 如果移动距离超过世界大小的1/4，说明发生了异常跳跃
+                    // 原因可能是：1) 周期性边界瞬移 2) ID被新粒子复用
+                        if (dx > worldSize / 4 || dy > worldSize / 4) {
+                            history.length = 0;  // 清空历史，断开轨迹
+                        }
+                    }
+                }
+                
+                history.push([x, y]);
+                if (history.length > historyLength) {
+                    history.shift();
+                }
+                
+                // 基于基因型确定族群颜色（基因前8位哈希）
+                let genomeHash = 0;
+                for (let j = 0; j < Math.min(8, genome.length); j++) {
+                    genomeHash = (genomeHash * 4 + genome[j]) % 360;
+                }
+                
+                // 颜色：色相=基因族群，亮度=能量
+                const hue = genomeHash;
+                const lightness = 30 + Math.min(energy * 10, 50);
+                const saturation = 70 + Math.min(generation * 2, 30);
+                
+                // 大小：根据世代和能量
+                const baseSize = 3 + Math.min(generation / 5, 4);
+                const size = baseSize * (0.7 + energy * 0.15);
+                
+                // 形状：根据基因后3位决定（0-7种形状）
+                let shapeType = 0;
+                if (genome.length > 3) {
+                    shapeType = (genome[genome.length-1] * 4 + genome[genome.length-2] * 2 + genome[genome.length-3]) % 6;
+                }
+                
+                particleCtx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+                particleCtx.strokeStyle = `hsl(${hue}, ${saturation}%, ${Math.min(lightness + 20, 100)}%)`;
+                particleCtx.lineWidth = 0.5;
+                
+                const px = (x * scale) + viewportOffset.x;
+                const py = (y * scale) + viewportOffset.y;
+                
+                particleCtx.beginPath();
+                
+                // 不同形状代表不同表型
+                switch(shapeType) {
+                    case 0: // 圆形 - 均衡型
+                        particleCtx.arc(px, py, size, 0, Math.PI * 2);
+                        break;
+                    case 1: // 三角形 - 攻击型
+                        particleCtx.moveTo(px, py - size);
+                        particleCtx.lineTo(px - size * 0.866, py + size * 0.5);
+                        particleCtx.lineTo(px + size * 0.866, py + size * 0.5);
+                        particleCtx.closePath();
+                        break;
+                    case 2: // 方形 - 防御型
+                        particleCtx.rect(px - size * 0.7, py - size * 0.7, size * 1.4, size * 1.4);
+                        break;
+                    case 3: // 椭圆 - 移动型
+                        particleCtx.ellipse(px, py, size * 1.2, size * 0.7, generation * 0.1, 0, Math.PI * 2);
+                        break;
+                    case 4: // 五角星 - 高能型
+                        for (let j = 0; j < 5; j++) {
+                            const angle = (j * 2 * Math.PI / 5) - Math.PI / 2;
+                            const r = j % 2 === 0 ? size : size * 0.5;
+                            if (j === 0) particleCtx.moveTo(px + r * Math.cos(angle), py + r * Math.sin(angle));
+                            else particleCtx.lineTo(px + r * Math.cos(angle), py + r * Math.sin(angle));
+                        }
+                        particleCtx.closePath();
+                        break;
+                    case 5: // 菱形 - 催化型
+                        particleCtx.moveTo(px, py - size);
+                        particleCtx.lineTo(px + size, py);
+                        particleCtx.lineTo(px, py + size);
+                        particleCtx.lineTo(px - size, py);
+                        particleCtx.closePath();
+                        break;
+                }
+                
+                particleCtx.fill();
+                particleCtx.stroke();
+                
+                // 绘制移动轨迹（淡化的线条）
+                if (history.length > 1) {
+                    particleCtx.strokeStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, 0.3)`;
+                    particleCtx.lineWidth = 1;
+                    particleCtx.beginPath();
+                    const startPos = history[0];
+                    if (!startPos || startPos.length < 2) {
+                        // skip invalid history
+                    } else {
+                        const startX = startPos[0];
+                        const startY = startPos[1];
+                        particleCtx.moveTo((startX * scale) + viewportOffset.x, (startY * scale) + viewportOffset.y);
+                    for (let h = 1; h < history.length; h++) {
+                        const hpos = history[h];
+                        if (!hpos || hpos.length < 2) continue;
+                        const hx = hpos[0];
+                        const hy = hpos[1];
+                        particleCtx.lineTo((hx * scale) + viewportOffset.x, (hy * scale) + viewportOffset.y);
+                    }
+                    particleCtx.stroke();
+                    }
+                }
+                
+                // 高世代生物显示光环
+                if (generation > 15) {
+                    particleCtx.strokeStyle = `hsla(${hue}, 100%, 70%, 0.3)`;
+                    particleCtx.lineWidth = 1;
+                    particleCtx.beginPath();
+                    particleCtx.arc(px, py, size + 2, 0, Math.PI * 2);
+                    particleCtx.stroke();
+                }
+            }
+            
+            renderEnvironmentMap(data);
+        }
+
+        function renderEnvironmentMap(data) {
+            if (!environmentCanvas || !environmentCtx || !data.chemical_field) return;
+            resizeCanvasToDisplaySize(environmentCanvas);
+            const layer = fieldLayerSelect ? fieldLayerSelect.value : 'atp';
+            const field = data.chemical_field[layer];
+            const width = environmentCanvas.width;
+            const height = environmentCanvas.height;
+            environmentCtx.fillStyle = 'rgba(5, 7, 20, 0.95)';
+            environmentCtx.fillRect(0, 0, width, height);
+            if (!field) return;
+
+            const worldSize = data.chemical_field.shape[0];
+            const scaleX = width / worldSize;
+            const scaleY = height / worldSize;
+
+            for (let x = 0; x < worldSize; x++) {
+                for (let y = 0; y < worldSize; y++) {
+                    environmentCtx.fillStyle = getFieldColor(layer, field[x][y]);
+                    environmentCtx.fillRect(
+                        x * scaleX,
+                        y * scaleY,
+                        Math.ceil(scaleX),
+                        Math.ceil(scaleY)
+                    );
+                }
+            }
+        }
+
+        function getFieldColor(layer, value) {
+            const clamp = (v, maxVal = 2.0) => Math.max(0, Math.min(v, maxVal));
+            if (layer === 'nutrient') {
+                const v = clamp(value, 1.5);
+                const g = Math.floor(120 + v * 80);
+                const r = Math.floor(40 + v * 60);
+                return `rgba(${r}, ${g}, 70, 0.95)`;
+            }
+            if (layer === 'inhibitor') {
+                const v = clamp(value, 1.0);
+                const b = Math.floor(140 + v * 100);
+                return `rgba(190, 60, ${b}, 0.95)`;
+            }
+            const v = clamp(value, 2.0);
+            const g = Math.floor(90 + v * 70);
+            const b = Math.floor(120 + v * 80);
+            return `rgba(30, ${g}, ${b}, 0.95)`;
+        }
+        
+        function toNumber(value, fallback = 0) {
+            return (typeof value === 'number' && !Number.isNaN(value)) ? value : fallback;
+        }
+
+        function toFixedSafe(value, digits, fallback = '-') {
+            return (typeof value === 'number' && Number.isFinite(value)) ? value.toFixed(digits) : fallback;
+        }
+
+        function updateStats(data) {
+            const stats = data.stats || {};
+            
+            // Basic stats
+            document.getElementById('time-step').textContent = data.time_step;
+            document.getElementById('alive-particles').textContent = toNumber(stats.alive_particles, 0);
+            document.getElementById('total-energy').textContent = toFixedSafe(stats.total_energy, 2, '0.00');
+            document.getElementById('max-generation').textContent = toNumber(stats.max_generation, 0);
+            
+            // Evolution events
+            document.getElementById('replication-events').textContent = toNumber(stats.replication_events, 0);
+            document.getElementById('death-events').textContent = toNumber(stats.death_events, 0);
+            document.getElementById('interaction-events').textContent = toNumber(stats.interaction_events, 0);
+            
+            // Emergence metrics
+            if (data.emergence) {
+                const emergence = data.emergence;
+                const score = emergence.emergence_score;
+                
+                document.getElementById('emergence-score').textContent = toFixedSafe(score, 3, '0.000');
+                document.getElementById('emergence-progress').style.width = (toNumber(score, 0) * 100) + '%';
+                
+                if (emergence.emergence_detected) {
+                    document.getElementById('emergence-status').textContent = '✅ 已检测到涌现！';
+                    document.getElementById('emergence-indicator').classList.add('active');
+                } else {
+                    document.getElementById('emergence-status').textContent = '⏳ 监测中...';
+                    document.getElementById('emergence-indicator').classList.remove('active');
+                }
+                
+                document.getElementById('genetic-diversity').textContent = toFixedSafe(emergence.genetic_diversity, 3, '0.000');
+                document.getElementById('energy-variance').textContent = toFixedSafe(emergence.energy_variance, 2, '0.00');
+                document.getElementById('spatial-variance').textContent = toFixedSafe(emergence.spatial_variance, 2, '0.00');
+                document.getElementById('gen-diversity').textContent = toNumber(emergence.generation_diversity, 0);
+                if (emergence.nutrient_variance !== undefined) {
+                    document.getElementById('nutrient-variance').textContent = toFixedSafe(emergence.nutrient_variance, 3, '0.000');
+                }
+                if (emergence.inhibitor_pressure !== undefined) {
+                    document.getElementById('inhibitor-pressure').textContent = toFixedSafe(emergence.inhibitor_pressure, 3, '0.000');
+                }
+            }
+            
+            // Additional metrics
+            const worldArea = data.chemical_field.shape[0] * data.chemical_field.shape[1];
+            const density = toNumber(stats.alive_particles, 0) / worldArea;
+            document.getElementById('particle-density').textContent = toFixedSafe(density, 4, '0.0000');
+            
+            if (toNumber(stats.alive_particles, 0) > 0) {
+                const avgEnergy = toNumber(stats.total_energy, 0) / stats.alive_particles;
+                document.getElementById('avg-energy').textContent = toFixedSafe(avgEnergy, 3, '0.000');
+            }
+            
+            // Genome statistics
+            if (stats.genome_lengths) {
+                document.getElementById('max-genome').textContent = toNumber(stats.genome_lengths.max, 0) + ' bp';
+                document.getElementById('min-genome').textContent = toNumber(stats.genome_lengths.min, 0) + ' bp';
+                document.getElementById('avg-genome').textContent = toFixedSafe(stats.genome_lengths.avg, 1, '0.0') + ' bp';
+            }
+            
+            // Calculate ATP concentration
+            if (data.chemical_field.atp) {
+                const avgATP = averageField(data.chemical_field.atp);
+                document.getElementById('atp-concentration').textContent = toFixedSafe(avgATP, 3, '0.000');
+            }
+            if (data.chemical_field.nutrient) {
+                const avgNutrient = averageField(data.chemical_field.nutrient);
+                document.getElementById('avg-nutrient').textContent = toFixedSafe(avgNutrient, 3, '0.000');
+            }
+            if (data.chemical_field.inhibitor) {
+                const avgInhibitor = averageField(data.chemical_field.inhibitor);
+                document.getElementById('avg-inhibitor').textContent = toFixedSafe(avgInhibitor, 3, '0.000');
+                const activity = avgInhibitor + toNumber(data.emergence?.nutrient_variance, 0);
+                document.getElementById('chemical-activity').textContent = toFixedSafe(activity, 3, '0.000');
+            }
+            
+            if (data.recent_inputs) {
+                renderRecentInputs(data.recent_inputs);
+            }
+        }
+
+        function averageField(field) {
+            let sum = 0;
+            let count = 0;
+            for (let x = 0; x < field.length; x++) {
+                const row = field[x];
+                for (let y = 0; y < row.length; y++) {
+                    sum += row[y];
+                    count++;
+                }
+            }
+            return count ? sum / count : 0;
+        }
+        
+        function togglePause() {
+            isPaused = !isPaused;
+            const button = event.target;
+            button.textContent = isPaused ? '▶️ 继续' : '⏸️ 暂停';
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({action: isPaused ? 'pause' : 'resume'}));
+            }
+        }
+        
+        function resetSystem() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({action: 'reset'}));
+            }
+        }
+        
+        function exportData() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({action: 'export'}));
+            }
+        }
+        
+        function requestSnapshot() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                setInputFeedback('服务器未连接，无法获取快照', false);
+                return;
+            }
+            setInputFeedback('正在请求快照...', true);
+            ws.send(JSON.stringify({action: 'snapshot'}));
+        }
+        
+        function updateInputFields() {
+            const selected = document.getElementById('input-type').value;
+            document.querySelectorAll('.input-field-block').forEach(block => {
+                block.classList.toggle('hidden', block.dataset.type !== selected);
+            });
+        }
+        
+        function buildInputPayload(type) {
+            if (type === 'chemical_pulse') {
+                return {
+                    x: parseFloat(document.getElementById('input-x').value || 0),
+                    y: parseFloat(document.getElementById('input-y').value || 0),
+                    radius: parseFloat(document.getElementById('input-radius').value || 1),
+                    intensity: parseFloat(document.getElementById('input-intensity').value || 1),
+                };
+            }
+            
+            if (type === 'parameter_adjust') {
+                const name = document.getElementById('input-param-name').value.trim();
+                if (!name) {
+                    return null;
+                }
+                const numericValue = parseFloat(document.getElementById('input-param-value').value);
+                if (Number.isNaN(numericValue)) {
+                    return null;
+                }
+                return { [name]: numericValue };
+            }
+            
+            if (type === 'catastrophe') {
+                return { event_type: document.getElementById('input-event-type').value };
+            }
+            
+            return {};
+        }
+        
+        function sendExternalInput() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                setInputFeedback('服务器未连接，无法发送输入', false);
+                return;
+            }
+            
+            const inputType = document.getElementById('input-type').value;
+            const payload = buildInputPayload(inputType);
+            
+            if (payload === null) {
+                setInputFeedback('请输入有效的参数名称和值', false);
+                return;
+            }
+            
+            ws.send(JSON.stringify({
+                action: 'input',
+                input_type: inputType,
+                payload: payload,
+                metadata: { source: 'web_ui' }
+            }));
+            setInputFeedback('输入已发送...', true);
+        }
+        
+        function setInputFeedback(message, success = true) {
+            if (!inputFeedback) return;
+            inputFeedback.textContent = message;
+            inputFeedback.style.color = success ? '#67b26f' : '#ff6b6b';
+        }
+        
+        function renderRecentInputs(inputs) {
+            const container = document.getElementById('recent-inputs');
+            if (!container) return;
+            
+            if (!inputs || inputs.length === 0) {
+                container.innerHTML = '<div class="recent-input-item" style="color:#999;">暂无输入</div>';
+                return;
+            }
+            
+            const latest = inputs.slice(-5).reverse();
+            container.innerHTML = latest.map(item => {
+                const params = JSON.stringify(item.params || {});
+                const applied = item.applied_at ?? '-';
+                return `
+                    <div class="recent-input-item">
+                        <span>类型: ${item.input_type}</span>
+                        <span>参数: ${params}</span>
+                        <span>时间步: ${applied}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Particle Hover Detection
+        const tooltip = document.getElementById('particle-tooltip');
+        
+        particleCanvas.addEventListener('mousemove', (event) => {
+            if (!currentParticleData) return;
+            
+            const rect = particleCanvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+            
+            // Find nearest particle
+            const positions = Array.isArray(currentParticleData.positions) ? currentParticleData.positions : [];
+            if (positions.length === 0) return;
+            let nearestIdx = -1;
+            let minDist = 15; // Detection radius in pixels
+            
+            for (let i = 0; i < positions.length; i++) {
+                const pos = positions[i];
+                if (!pos || pos.length < 2) continue;
+                const wx = pos[0];
+                const wy = pos[1];
+                // 应用与渲染相同的变换：缩放 + 平移
+                const px = wx * worldScale + viewportOffset.x;
+                const py = wy * worldScale + viewportOffset.y;
+                const dist = Math.sqrt((px - mouseX) ** 2 + (py - mouseY) ** 2);
+                
+                if (dist < minDist) {
+                    minDist = dist;
+                    nearestIdx = i;
+                }
+            }
+            
+            if (nearestIdx >= 0) {
+                // Show tooltip
+                const particle = {
+                    id: currentParticleData.ids ? currentParticleData.ids[nearestIdx] : nearestIdx,
+                    position: currentParticleData.positions[nearestIdx],
+                    energy: currentParticleData.energies[nearestIdx],
+                    generation: currentParticleData.generations[nearestIdx],
+                    age: currentParticleData.ages ? currentParticleData.ages[nearestIdx] : 0,
+                    genome: currentParticleData.genomes ? currentParticleData.genomes[nearestIdx] : [],
+                    phenotype: currentParticleData.phenotypes ? currentParticleData.phenotypes[nearestIdx] : {}
+                };
+                
+                // Format genome with color coding
+                let genomeHTML = '';
+                if (particle.genome.length > 0) {
+                    const bases = ['A', 'T', 'G', 'C'];
+                    const genomeLength = particle.genome.length;
+                    
+                    // 每10个碱基一组，最多显示前60个
+                    const displayLength = Math.min(60, genomeLength);
+                    let genomeSegments = [];
+                    
+                    for (let i = 0; i < displayLength; i++) {
+                        const base = bases[particle.genome[i]];
+                        genomeSegments.push(`<span class="base-${base}">${base}</span>`);
+                        
+                        // 每10个碱基加一个空格
+                        if ((i + 1) % 10 === 0 && i < displayLength - 1) {
+                            genomeSegments.push(' ');
+                        }
+                    }
+                    
+                    if (genomeLength > displayLength) {
+                        genomeSegments.push('<span style="color: #888;">...</span>');
+                    }
+                    
+                    genomeHTML = genomeSegments.join('');
+                }
+                
+                // Build tooltip HTML
+                let html = `
+                    <div class="tooltip-title">🧬 生态个体 #${particle.id}</div>
+                    <div class="tooltip-item">
+                        <span class="tooltip-label">空间坐标:</span>
+                        <span class="tooltip-value">(${particle.position[0].toFixed(1)}, ${particle.position[1].toFixed(1)}) μm</span>
+                    </div>
+                    <div class="tooltip-item">
+                        <span class="tooltip-label">ATP 能量:</span>
+                        <span class="tooltip-value">${particle.energy.toFixed(2)}</span>
+                    </div>
+                    <div class="tooltip-item">
+                        <span class="tooltip-label">生态世代:</span>
+                        <span class="tooltip-value">${particle.generation}</span>
+                    </div>
+                    <div class="tooltip-item">
+                        <span class="tooltip-label">存活时长:</span>
+                        <span class="tooltip-value">${particle.age} steps</span>
+                    </div>
+                `;
+                
+                // Advanced genome translation system
+                if (particle.phenotype && Object.keys(particle.phenotype).length > 0) {
+                    const p = particle.phenotype;
+                    const genomeLength = particle.genome.length;
+                    
+                    // ========== 1. 组织复杂度分类 ==========
+                    let complexityLevel = '';
+                    let complexityEmoji = '';
+                    if (genomeLength < 20) {
+                        complexityLevel = '原核生物级（简单单细胞）';
+                        complexityEmoji = '🦠';
+                    } else if (genomeLength < 30) {
+                        complexityLevel = '真核单细胞（复杂单细胞）';
+                        complexityEmoji = '🔬';
+                    } else if (genomeLength < 50) {
+                        complexityLevel = '多细胞早期（殖民体）';
+                        complexityEmoji = '🧫';
+                    } else if (genomeLength < 80) {
+                        complexityLevel = '简单多细胞（海绵/水母级）';
+                        complexityEmoji = '🪸';
+                    } else {
+                        complexityLevel = '复杂多细胞（脊椎动物级）';
+                        complexityEmoji = '🐟';
+                    }
+                    
+                    // ========== 2. 生态位分析 ==========
+                    const roles = [];
+                    let primaryRole = '';
+                    
+                    // 营养方式
+                    if (p.field_interaction > 0.5) {
+                        roles.push('🌿 自养生物（生产者）');
+                        primaryRole = '初级生产者';
+                    } else if (p.field_interaction > 0.2) {
+                        roles.push('🌾 兼养生物');
+                    }
+                    
+                    if (p.conversion_threshold > 0.5) {
+                        roles.push('🍄 分解者（腐生）');
+                        if (!primaryRole) primaryRole = '分解者';
+                    }
+                    
+                    if (p.interaction_mode < -0.5) {
+                        roles.push('🦁 顶级捕食者');
+                        if (!primaryRole) primaryRole = '消费者';
+                    } else if (p.interaction_mode < -0.2) {
+                        roles.push('🐺 捕食者');
+                        if (!primaryRole) primaryRole = '消费者';
+                    }
+                    
+                    if (p.cooperation_threshold > 0.7) {
+                        roles.push('🤝 社会性物种');
+                    } else if (p.cooperation_threshold > 0.5) {
+                        roles.push('👥 群居物种');
+                    }
+                    
+                    if (p.movement_response > 1.5) {
+                        roles.push('🏃 高度移动性');
+                    } else if (p.movement_response > 0.8) {
+                        roles.push('🚶 中等移动性');
+                    } else {
+                        roles.push('🌳 固着/底栖');
+                    }
+                    
+                    if (roles.length === 0) {
+                        roles.push('⚪ 中性物种');
+                        primaryRole = '中性';
+                    }
+                    
+                    // ========== 3. 生活史策略（r-K选择理论）==========
+                    let lifeHistory = '';
+                    let lifeHistoryDesc = '';
+                    const rScore = (2.0 - p.replication_threshold) + (2.0 - p.aging_resistance);
+                    
+                    if (rScore > 2.5) {
+                        lifeHistory = 'r-策略者';
+                        lifeHistoryDesc = '快繁殖、短寿命、高后代数、适应不稳定环境';
+                    } else if (rScore < 1.5) {
+                        lifeHistory = 'K-策略者';
+                        lifeHistoryDesc = '慢繁殖、长寿命、少后代、适应稳定环境';
+                    } else {
+                        lifeHistory = '中间策略';
+                        lifeHistoryDesc = '平衡繁殖速度与寿命';
+                    }
+                    
+                    // ========== 4. 竞争策略 ==========
+                    let competitionStyle = '';
+                    if (p.interaction_mode < -0.4 && p.cooperation_threshold < 0.3) {
+                        competitionStyle = '激进型竞争者（领地性强）';
+                    } else if (p.cooperation_threshold > 0.6) {
+                        competitionStyle = '合作共生者（互利共生）';
+                    } else if (p.field_interaction > 0.4) {
+                        competitionStyle = '资源独立者（自给自足）';
+                    } else {
+                        competitionStyle = '机会主义者（灵活适应）';
+                    }
+                    
+                    // ========== 5. 渲染基因翻译报告 ==========
+                    html += `
+                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.2);">
+                            <div style="color: #4ecdc4; font-weight: bold; margin-bottom: 8px; font-size: 13px;">
+                                🧬 基因组分析报告
+                            </div>
+                            
+                            <!-- 组织复杂度 -->
+                            <div style="background: rgba(255,255,255,0.05); padding: 6px; border-radius: 4px; margin-bottom: 6px;">
+                                <div style="color: #ff6b6b; font-weight: bold; font-size: 11px;">组织复杂度</div>
+                                <div style="color: #ffd700; margin-top: 2px;">
+                                    ${complexityEmoji} ${complexityLevel}
+                                </div>
+                                <div style="color: #888; font-size: 10px; margin-top: 2px;">
+                                    基因长度: ${genomeLength} bp
+                                </div>
+                            </div>
+                            
+                            <!-- 生态位 -->
+                            <div style="background: rgba(255,255,255,0.05); padding: 6px; border-radius: 4px; margin-bottom: 6px;">
+                                <div style="color: #4ecdc4; font-weight: bold; font-size: 11px;">生态位</div>
+                                <div style="color: #aaa; font-size: 10px; margin-top: 2px;">
+                                    主要角色: ${primaryRole}
+                                </div>
+                                <div style="color: #ffd700; margin-top: 3px; font-size: 10px; line-height: 1.4;">
+                                    ${roles.join(' · ')}
+                                </div>
+                            </div>
+                            
+                            <!-- 生活史策略 -->
+                            <div style="background: rgba(255,255,255,0.05); padding: 6px; border-radius: 4px; margin-bottom: 6px;">
+                                <div style="color: #95e1d3; font-weight: bold; font-size: 11px;">生活史策略</div>
+                                <div style="color: #ffd700; margin-top: 2px; font-size: 10px;">
+                                    ${lifeHistory}
+                                </div>
+                                <div style="color: #888; font-size: 9px; margin-top: 2px; line-height: 1.3;">
+                                    ${lifeHistoryDesc}
+                                </div>
+                            </div>
+                            
+                            <!-- 竞争策略 -->
+                            <div style="background: rgba(255,255,255,0.05); padding: 6px; border-radius: 4px;">
+                                <div style="color: #ffa502; font-weight: bold; font-size: 11px;">竞争策略</div>
+                                <div style="color: #ffd700; margin-top: 2px; font-size: 10px;">
+                                    ${competitionStyle}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // 折叠的详细表型参数
+                    html += `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.2);">`;
+                    html += `<div style="color: #67b26f; font-weight: bold; margin-bottom: 4px; font-size: 11px;">详细表型参数 ↓</div>`;
+                    const phenotypeEntries = particle && particle.phenotype ? Object.entries(particle.phenotype) : [];
+                    for (const entry of phenotypeEntries) {
+                        if (!entry || entry.length < 2) continue;
+                        const key = entry[0];
+                        const value = entry[1];
+                        const label = {
+                            'field_interaction': '场交互',
+                            'movement_response': '移动响应',
+                            'interaction_mode': '交互模式',
+                            'replication_threshold': '复制阈值',
+                            'conversion_threshold': '转化阈值',
+                            'interaction_threshold': '交互阈值',
+                            'cooperation_threshold': '合作阈值',
+                            'aging_resistance': '衰老抗性'
+                        }[key] || key;
+                        
+                        const safeValue = (typeof value === 'number' && Number.isFinite(value)) ? value.toFixed(3) : '-';
+                        html += `
+                            <div class="tooltip-item" style="font-size: 10px;">
+                                <span class="tooltip-label">${label}:</span>
+                                <span class="tooltip-value">${safeValue}</span>
+                            </div>
+                        `;
+                    }
+                    html += `</div>`;
+                }
+                
+                // Add genome with color coding
+                if (genomeHTML) {
+                    const genomeLength = particle.genome.length;
+                    html += `
+                        <div class="genome-display">
+                            <div class="genome-header">
+                                <span>基因序列</span>
+                                <span style="color: #888;">${genomeLength} bp</span>
+                            </div>
+                            <div>${genomeHTML}</div>
+                        </div>
+                    `;
+                }
+                
+                tooltip.innerHTML = html;
+                tooltip.style.display = 'block';
+                tooltip.style.left = (event.clientX + 15) + 'px';
+                tooltip.style.top = (event.clientY + 15) + 'px';
+            } else {
+                tooltip.style.display = 'none';
+            }
+        });
+        
+        particleCanvas.addEventListener('mouseleave', () => {
+            tooltip.style.display = 'none';
+        });
+        
+        // Canvas Pan & Zoom Controls - 统一处理两个canvas
+        function setupCanvasControls(canvas) {
+            canvas.addEventListener('mousedown', (e) => {
+                if (e.button === 0) {  // 左键拖动
+                    isDragging = true;
+                    dragStart = { x: e.clientX - viewportOffset.x, y: e.clientY - viewportOffset.y };
+                    canvas.style.cursor = 'grabbing';
+                }
+            });
+            
+            canvas.addEventListener('mousemove', (e) => {
+                lastMousePos = { x: e.clientX, y: e.clientY };
+                
+                if (isDragging) {
+                    viewportOffset.x = e.clientX - dragStart.x;
+                    viewportOffset.y = e.clientY - dragStart.y;
+                }
+            });
+            
+            canvas.addEventListener('mouseup', () => {
+                isDragging = false;
+                canvas.style.cursor = 'default';
+            });
+            
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                
+                const zoomSpeed = 0.1;
+                const delta = e.deltaY > 0 ? -zoomSpeed : zoomSpeed;
+                const newZoom = Math.max(0.5, Math.min(5, viewportZoom + delta));
+                
+                // Zoom towards mouse position
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                
+                const zoomRatio = newZoom / viewportZoom;
+                viewportOffset.x = mouseX - (mouseX - viewportOffset.x) * zoomRatio;
+                viewportOffset.y = mouseY - (mouseY - viewportOffset.y) * zoomRatio;
+                
+                viewportZoom = newZoom;
+            });
+            
+            // Reset view with double-click
+            canvas.addEventListener('dblclick', () => {
+                viewportOffset = { x: 0, y: 0 };
+                viewportZoom = 1.0;
+            });
+        }
+        
+        // 为两个canvas都添加控制
+        setupCanvasControls(particleCanvas);
+        setupCanvasControls(environmentCanvas);
+        
+        // Speed control slider
+        document.getElementById('speed-control').addEventListener('input', (e) => {
+            renderInterval = parseInt(e.target.value);
+            const speedDisplay = document.getElementById('speed-display');
+            
+            if (renderInterval === 0) {
+                speedDisplay.textContent = '0ms (最快)';
+            } else {
+                const fps = Math.round(1000 / renderInterval);
+                speedDisplay.textContent = `${renderInterval}ms (${fps} FPS)`;
+            }
+        });
+        
+        updateInputFields();
+        // Initialize connection
+        resizeAllCanvases();
+        connect();
+    </script>
+</body>
+</html>
