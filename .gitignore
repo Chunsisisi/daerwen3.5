@@ -35,7 +35,7 @@ nohup.out
 *_old
 
 # Benchmark results (optional - comment out if you want to track)
-# benchmark_results/
+benchmark_results/
 
 # OS
 .DS_Store

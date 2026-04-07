@@ -70,6 +70,7 @@ import math
 xp = cp if GPU_AVAILABLE else np
 
 PHENOTYPE_KEYS = [
+    # 原始 8 个表型（由基因组前 8 段编码）
     'field_interaction',
     'movement_response',
     'interaction_mode',
@@ -78,6 +79,11 @@ PHENOTYPE_KEYS = [
     'interaction_threshold',
     'cooperation_threshold',
     'aging_resistance',
+    # 第三层新增 4 个表型（由基因组扩展段编码，基因组 < 36 碱基时使用 Config 默认值）
+    'inhibitor_sensitivity',      # 抑制剂伤害系数 [0, 0.1]
+    'chemotaxis_gene_strength',   # 趋化力强度 [0, 0.15]
+    'replication_energy_split',   # 子代能量比例 [0.3, 0.7]
+    'atp_absorption_rate',        # ATP 吸收系数 [0.05, 0.25]
 ]
 
 def _to_xp(array: Any, dtype: Optional[Any] = None):
@@ -102,7 +108,7 @@ class Ecology2DConfig:
     diffusion_rate: float = 0.1     # 扩散率
     
     # 基因参数
-    genome_length: int = 32         # 基因组长度（4碱基编码）
+    genome_length: int = 48         # 基因组长度（4碱基编码；32原始段 + 16扩展段）
     mutation_rate: float = 0.01
     
     # 化学参数
@@ -128,6 +134,20 @@ class Ecology2DConfig:
     cohesion_strength: float = 0.08
     repulsion_strength: float = 0.15
     gradient_drift_rate: float = 0.01
+
+    # === 第一层：物理单位参数（原硬编码，现显式化）===
+    solar_energy_scale: float = 0.001   # 太阳能实际注入系数（原匿名 * 0.001）
+    solar_saturation: float = 1.0       # ATP 饱和阈值（修复 allowlist 孤儿）
+    velocity_damping: float = 0.9       # 速度阻尼系数（原匿名 0.9）
+    brownian_strength: float = 0.1      # 布朗运动强度（原匿名 0.1）
+    chemotaxis_strength: float = 0.05   # 趋化力系数（原匿名 0.05；L3 中变为新表型默认值）
+    atp_absorption_scale: float = 0.1   # ATP 吸收系数（原匿名 0.1）
+    inhibitor_damage_coeff: float = 0.02 # 抑制剂伤害系数（原匿名 0.02；L3 中变为新表型默认值）
+    interaction_interval: int = 10       # 交互计算间隔步数（原匿名 % 10）
+
+    # === 第二层：守恒参数（原隐式，现显式化）===
+    death_waste_release: float = 0.5    # 死亡时能量转废物比例（修复守恒 bug）
+    predation_heat_loss: float = 0.6    # 捕食能量热损失率（原隐式 = 1 - 0.4）
 
 
 @dataclass
@@ -230,9 +250,42 @@ class Particle2D:
         cooperation_threshold = float(1.0 / (1.0 + np.exp(-sig_input)))
         
         # 段7: 衰老抗性 (0-2，越高越长寿)
-        seg7 = self.genome[7*seg_len:]
-        aging_resistance = float(np.mean(seg7) / 2.0)
-        
+        # 修复：使用固定边界 [7*seg_len : 8*seg_len]，不再吃掉所有剩余碱基
+        seg7 = self.genome[7*seg_len:8*seg_len]
+        aging_resistance = float(np.mean(seg7) / 2.0) if len(seg7) > 0 else 0.5
+
+        # === 第三层：扩展表型（从基因组 8*seg_len 之后的扩展区解码）===
+        # 每个新段固定 4 碱基；基因组不够长时使用 Config 中的默认值（向后兼容）
+        _EXT_SEG = 4
+        _ext_base = 8 * seg_len
+
+        def _decode_ext(n: int):
+            start = _ext_base + n * _EXT_SEG
+            end = start + _EXT_SEG
+            if end <= genome_len:
+                return self.genome[start:end]
+            return None
+
+        # 扩展段 0: inhibitor_sensitivity [0, 0.1]  (碱基均值 0~3 → /30)
+        _s8 = _decode_ext(0)
+        inhibitor_sensitivity = (float(np.mean(_s8)) / 30.0) if _s8 is not None \
+            else (self._system_ref.config.inhibitor_damage_coeff if self._system_ref else 0.02)
+
+        # 扩展段 1: chemotaxis_gene_strength [0, 0.15]  (碱基均值 0~3 → /20)
+        _s9 = _decode_ext(1)
+        chemotaxis_gene_strength = (float(np.mean(_s9)) / 20.0) if _s9 is not None \
+            else (self._system_ref.config.chemotaxis_strength if self._system_ref else 0.05)
+
+        # 扩展段 2: replication_energy_split [0.3, 0.7]  (碱基均值 0~3 → 0.3 + x*0.4/3)
+        _s10 = _decode_ext(2)
+        replication_energy_split = (0.3 + float(np.mean(_s10)) * 0.4 / 3.0) if _s10 is not None \
+            else 0.5
+
+        # 扩展段 3: atp_absorption_rate [0.05, 0.25]  (碱基均值 0~3 → 0.05 + x*0.2/3)
+        _s11 = _decode_ext(3)
+        atp_absorption_rate = (0.05 + float(np.mean(_s11)) * 0.2 / 3.0) if _s11 is not None \
+            else (self._system_ref.config.atp_absorption_scale if self._system_ref else 0.1)
+
         phenotype = {
             'field_interaction': field_interaction,
             'movement_response': movement_response,
@@ -242,6 +295,11 @@ class Particle2D:
             'interaction_threshold': interaction_threshold,
             'cooperation_threshold': cooperation_threshold,
             'aging_resistance': aging_resistance,
+            # 第三层新增
+            'inhibitor_sensitivity':     inhibitor_sensitivity,
+            'chemotaxis_gene_strength':  chemotaxis_gene_strength,
+            'replication_energy_split':  replication_energy_split,
+            'atp_absorption_rate':       atp_absorption_rate,
         }
         
         if self._system_ref is not None:
@@ -350,7 +408,7 @@ class ChemicalField2D:
         else:
             scale = 1.0
 
-        atp_layer += rate * 0.001 * scale
+        atp_layer += rate * scale
         atp_layer[:] = xp.minimum(atp_layer, 2.0)  # 局部封顶
         self.invalidate_gradient_cache()
 
@@ -684,7 +742,10 @@ class Ecology2DSystem:
             self.chemical_field.diffuse(dt * 5, self.config.diffusion_rate)
         
         # 2. 太阳能输入（持续能量源）
-        self.chemical_field.add_solar_energy(self.config.solar_energy_rate)
+        self.chemical_field.add_solar_energy(
+            self.config.solar_energy_rate * self.config.solar_energy_scale,
+            self.config.solar_saturation,
+        )
         self.chemical_field.apply_environmental_gradients(
             self.config.spatial_gradient_strength,
             self.time_step
@@ -745,7 +806,7 @@ class Ecology2DSystem:
                 absorbed = self.chemical_field.consume(
                     particle.position,
                     self.chemical_field.ATP_index,
-                    abs(absorption_rate) * 0.1
+                    abs(absorption_rate) * particle.phenotype.get('atp_absorption_rate', self.config.atp_absorption_scale)
                 )
                 particle.energy += absorbed
             else:
@@ -787,7 +848,7 @@ class Ecology2DSystem:
 
             inhibitor_level = local_field[self.chemical_field.inhibitor_index]
             if inhibitor_level > 0.01:
-                penalty = inhibitor_level * 0.02
+                penalty = inhibitor_level * particle.phenotype.get('inhibitor_sensitivity', self.config.inhibitor_damage_coeff)
                 particle.energy -= penalty
             
             particle.age += 1
@@ -796,8 +857,8 @@ class Ecology2DSystem:
     
     def _particle_interactions(self, alive_particles: List[Particle2D], state: Dict[str, Any]):
         """粒子间相互作用 - 让捕食、共生等关系涌现"""
-        # 每10步执行一次交互检测（性能优化）
-        if self.time_step % 10 != 0:
+        # 每 interaction_interval 步执行一次交互检测（性能优化）
+        if self.time_step % self.config.interaction_interval != 0:
             return
             
         alive_count = len(alive_particles)
@@ -894,13 +955,14 @@ class Ecology2DSystem:
             
             if abs(mode_diff) > avg_threshold:  # 显著差异（阈值由基因决定）
                 # mode高的从mode低的获取能量
+                # 第二层：predation_heat_loss 显式化捕食热损失（原隐式 1 - 0.4 = 0.6）
                 if mode_diff > 0:
                     transfer_amount = 0.1 * particle_j.energy * interaction_strength
-                    particle_i.energy += transfer_amount * 0.4
+                    particle_i.energy += transfer_amount * (1.0 - self.config.predation_heat_loss)
                     particle_j.energy -= transfer_amount
                 else:
                     transfer_amount = 0.1 * particle_i.energy * interaction_strength
-                    particle_j.energy += transfer_amount * 0.4
+                    particle_j.energy += transfer_amount * (1.0 - self.config.predation_heat_loss)
                     particle_i.energy -= transfer_amount
         
         # 基因交换（相似性和合作倾向都由基因决定）
@@ -976,12 +1038,12 @@ class Ecology2DSystem:
             if movement_resp <= 0:
                 continue
 
-            random_force = self.rng.normal(0, 0.1, size=2)
+            random_force = self.rng.normal(0, self.config.brownian_strength, size=2)
             field_interaction = field_interactions[idx]
-            gradient_force = gradient * field_interaction * movement_resp * 0.05
+            gradient_force = gradient * field_interaction * movement_resp * particle.phenotype.get('chemotaxis_gene_strength', self.config.chemotaxis_strength)
 
             particle.velocity += (random_force + gradient_force) * dt
-            particle.velocity *= 0.9  # 阻尼
+            particle.velocity *= self.config.velocity_damping
             particle.position += particle.velocity * dt
             particle.position = np.mod(particle.position, self.config.world_size)
             velocities[idx] = particle.velocity
@@ -1076,9 +1138,10 @@ class Ecology2DSystem:
             )
             self.next_particle_id += 1
             offspring.generation = particle.generation + 1
-            offspring.energy = particle.energy * 0.5
+            _split = particle.phenotype.get('replication_energy_split', 0.5)
+            offspring.energy = particle.energy * _split
 
-            particle.energy *= 0.5
+            particle.energy *= (1.0 - _split)
             energies[idx] = particle.energy
             
             new_particles.append(offspring)
@@ -1116,10 +1179,10 @@ class Ecology2DSystem:
             particle.alive = False
             self.stats['death_events'] += 1
 
-            if energy_depleted[idx]:
-                waste = 0.5
-            else:
-                waste = particle.energy * 0.5
+            # 第二层：守恒修复 —— 统一用 death_waste_release 比例
+            # energy_depleted 时 energy ≤ 0，max(0, energy) = 0，waste = 0（守恒）
+            # aging_death 时 energy > 0，waste = energy * release（与原逻辑一致）
+            waste = max(0.0, particle.energy) * self.config.death_waste_release
             self.chemical_field.produce(
                 particle.position,
                 self.chemical_field.waste_index,
@@ -1222,24 +1285,35 @@ class Ecology2DSystem:
     def _apply_parameter_adjust_input(self, params: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         """调整系统参数（受 allowlist 与范围限制）。"""
         allow_rules: Dict[str, Dict[str, Any]] = {
-            'mutation_rate': {'min': 0.0, 'max': 0.2, 'cast': float},
-            'structural_variation_rate': {'min': 0.0, 'max': 0.05, 'cast': float},
-            'solar_energy_rate': {'min': 0.0, 'max': 0.2, 'cast': float},
-            'solar_saturation': {'min': 0.01, 'max': 5.0, 'cast': float},
-            'metabolic_cost': {'min': 0.0, 'max': 1.0, 'cast': float},
-            'atp_decay_rate': {'min': 0.0, 'max': 0.1, 'cast': float},
-            'waste_recovery_rate': {'min': 0.0, 'max': 0.05, 'cast': float},
-            'nutrient_decay_rate': {'min': 0.0, 'max': 0.1, 'cast': float},
-            'inhibitor_decay_rate': {'min': 0.0, 'max': 0.1, 'cast': float},
-            'diffusion_rate': {'min': 0.0, 'max': 1.0, 'cast': float},
-            'spatial_gradient_strength': {'min': 0.0, 'max': 2.0, 'cast': float},
-            'interaction_radius': {'min': 0.5, 'max': 20.0, 'cast': float},
-            'max_interaction_samples': {'min': 10, 'max': 2000, 'cast': int},
-            'gene_exchange_scale': {'min': 0.0, 'max': 2.0, 'cast': float},
-            'adhesion_strength': {'min': 0.0, 'max': 2.0, 'cast': float},
-            'cohesion_strength': {'min': 0.0, 'max': 2.0, 'cast': float},
-            'repulsion_strength': {'min': 0.0, 'max': 3.0, 'cast': float},
-            'gradient_drift_rate': {'min': 0.0, 'max': 1.0, 'cast': float},
+            'mutation_rate':              {'min': 0.0,   'max': 0.2,   'cast': float},
+            'structural_variation_rate':  {'min': 0.0,   'max': 0.05,  'cast': float},
+            'solar_energy_rate':          {'min': 0.0,   'max': 3.0,   'cast': float},  # 修复：原 max=0.2 是 bug
+            'solar_energy_scale':         {'min': 1e-5,  'max': 0.01,  'cast': float},  # 新增
+            'solar_saturation':           {'min': 0.1,   'max': 5.0,   'cast': float},  # 修复：现与 Config 同步
+            'metabolic_cost':             {'min': 0.0,   'max': 1.0,   'cast': float},
+            'atp_decay_rate':             {'min': 0.0,   'max': 0.1,   'cast': float},
+            'waste_recovery_rate':        {'min': 0.0,   'max': 0.05,  'cast': float},
+            'nutrient_decay_rate':        {'min': 0.0,   'max': 0.1,   'cast': float},
+            'inhibitor_decay_rate':       {'min': 0.0,   'max': 0.1,   'cast': float},
+            'diffusion_rate':             {'min': 0.0,   'max': 1.0,   'cast': float},
+            'spatial_gradient_strength':  {'min': 0.0,   'max': 2.0,   'cast': float},
+            'interaction_radius':         {'min': 0.5,   'max': 20.0,  'cast': float},
+            'max_interaction_samples':    {'min': 10,    'max': 2000,  'cast': int},
+            'gene_exchange_scale':        {'min': 0.0,   'max': 2.0,   'cast': float},
+            'adhesion_strength':          {'min': 0.0,   'max': 2.0,   'cast': float},
+            'cohesion_strength':          {'min': 0.0,   'max': 2.0,   'cast': float},
+            'repulsion_strength':         {'min': 0.0,   'max': 3.0,   'cast': float},
+            'gradient_drift_rate':        {'min': 0.0,   'max': 1.0,   'cast': float},
+            # 第一层新增
+            'velocity_damping':           {'min': 0.5,   'max': 0.99,  'cast': float},
+            'brownian_strength':          {'min': 0.0,   'max': 1.0,   'cast': float},
+            'chemotaxis_strength':        {'min': 0.0,   'max': 0.5,   'cast': float},
+            'atp_absorption_scale':       {'min': 0.0,   'max': 1.0,   'cast': float},
+            'inhibitor_damage_coeff':     {'min': 0.0,   'max': 0.2,   'cast': float},
+            'interaction_interval':       {'min': 1,     'max': 100,   'cast': int},
+            # 第二层新增
+            'death_waste_release':        {'min': 0.0,   'max': 1.0,   'cast': float},
+            'predation_heat_loss':        {'min': 0.0,   'max': 1.0,   'cast': float},
         }
 
         result: Dict[str, Dict[str, Any]] = {'applied': {}, 'rejected': {}}
@@ -1357,7 +1431,10 @@ class Ecology2DSystem:
                     'max': int(max(len(p.genome) for p in alive_particles)),
                     'min': int(min(len(p.genome) for p in alive_particles)),
                     'avg': float(np.mean([len(p.genome) for p in alive_particles])),
-                }
+                },
+                # 第二层：场能量统计（用于守恒监控）
+                'field_atp_total': float(np.sum(atp_field)),
+                'system_total_energy': float(sum(energies)) + float(np.sum(atp_field)),
             }
         }
     

@@ -2,10 +2,22 @@
 
 > **Physics-Grounded Ecological Intelligence: Exploring AGI Emergence from Minimal Rules**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
 **DAERWEN** (Darwin-inspired Emergent World Engine) is a research platform exploring how intelligence can emerge from simple physical rules, chemical interactions, and genetic evolution—without hardcoded behaviors.
+
+---
+
+## 💫 Mission Statement
+
+**I share Elon Musk's vision: the advancement of civilization matters more than individual recognition.**
+
+This project was built entirely with AI agent assistance. My English is limited, but I believe in the power of collaboration—human and AI working together to explore new paths to AGI.
+
+**If someone is inspired by this work and creates something better, even if this project remains unknown, I will be happy. As long as civilization progresses.** Science has no boundaries.
+
+---
 
 🎯 **Core Philosophy**: Avoid the "Designer's Trap" by minimizing arbitrary priors and maximizing emergence.
 
@@ -53,10 +65,10 @@ python scripts/start_engine_cpu.py
 ### Run Tests
 ```bash
 # AI Learning Benchmark (continual learning metrics)
-python tests/ai_learning_benchmark_quick.py
+python tests/benchmarks/brutal_benchmark_fast.py
 
 # Unconscious Learning Suite (implicit pattern extraction)
-python tests/unconscious_learning_suite.py
+python tests/benchmarks/unconscious_learning_suite.py
 ```
 
 ---
@@ -116,7 +128,7 @@ Our system demonstrates:
 
 ### For Researchers
 - [AGI Vision & Roadmap](docs/AGI_VISION.md) — Emergence-driven path to AGI
-- [Genotype→Phenotype First Principles](docs/types/GENOTYPE_TO_PHENOTYPE_FIRST_PRINCIPLES.md) — Multi-layer expression theory
+- [Genotype→Phenotype First Principles](docs/design/GENOTYPE_TO_PHENOTYPE_FIRST_PRINCIPLES.md) — Multi-layer expression theory
 - [Learning Test Suite Design](tests/unconscious_learning_suite.py) — World's first unconscious learning benchmark
 
 ### For Engineers
@@ -191,14 +203,25 @@ We welcome contributions! This is an **exploration**, not a finished product.
 
 ---
 
+## 📖 Citation
+
+If you use DAERWEN in your research, please cite:
+
+```
+Hou Zehao. DAERWEN: Physics-Grounded Ecological Intelligence (2026).
+GitHub: https://github.com/Chunsisisi/daerwen3.5
+```
+
+---
+
 ## 📄 License
 
-MIT License - See [LICENSE](LICENSE) for details.
+GNU Affero General Public License v3.0 - See [LICENSE](LICENSE) for details.
 
-**Why MIT?**
-- ✅ Permissive (allows commercial use)
-- ✅ Encourages adoption
-- ✅ Fosters open science
+**Why AGPL v3?**
+- ✅ Research stays open forever — derivatives must also be open source
+- ✅ Covers network use — no "SaaS loophole" (running as a service still requires open sourcing)
+- ✅ Fosters open science and civilizational progress over private capture
 
 ---
 
@@ -210,12 +233,10 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 ---
 
-## 📬 Contact & Community
+## 📬 Contact
 
-- **GitHub Issues**: For bug reports and feature requests
-- **Discussions**: For questions and brainstorming
-- **Email**: [Your email if you want]
-- **Twitter/X**: [Your handle if you have one]
+- **GitHub Issues**: For bug reports, feature requests, questions, and discussions
+- **Pull Requests**: Contributions are welcome!
 
 ---
 
@@ -243,7 +264,7 @@ It helps others discover this work and motivates continued development.
 
 **Status**: Active research (as of March 2026)  
 **Version**: 3.5 (Stable branch with optimal parameters)  
-**Maintainer**: [Your name/handle]
+**Maintainer**: Hou Zehao ([@Chunsisisi](https://github.com/Chunsisisi))
 
 ---
 
