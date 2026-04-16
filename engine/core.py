@@ -149,6 +149,11 @@ class Ecology2DConfig:
     death_waste_release: float = 0.5    # 死亡时能量转废物比例（修复守恒 bug）
     predation_heat_loss: float = 0.6    # 捕食能量热损失率（原隐式 = 1 - 0.4）
 
+    # === 第三层：基因表达模式 ===
+    # False = 12 种不同公式（旧设计师陷阱）
+    # True  = 统一的"碱基频率→表型"映射（chem_sim 启发）
+    use_chem_sim_genes: bool = True
+
 
 @dataclass
 class ExternalInput:
@@ -215,7 +220,29 @@ class Particle2D:
         self.phenotype = self._express_genes()
 
     def _express_genes(self) -> Dict[str, float]:
-        """基因表达：DNA序列 → 反应倾向参数（行为由局部环境调制）"""
+        """基因表达：DNA序列 → 反应倾向参数（行为由局部环境调制）
+
+        两种模式：
+          - chem_sim 模式（默认）：统一的"碱基频率→表型"映射
+          - 旧模式：12 种不同的数学公式（segment-by-segment）
+        """
+        # ── chem_sim 模式（少设计师陷阱）─────────────────────────
+        if self._system_ref is not None and getattr(self._system_ref.config, 'use_chem_sim_genes', False):
+            from engine.chem_sim_genes import express_phenotypes_from_composition
+            phenotype = express_phenotypes_from_composition(self.genome)
+            # 环境调制（保留与旧模式相同的局部环境响应逻辑）
+            local_field = self._system_ref.chemical_field.get_local_concentration(self.position)
+            atp_level = float(local_field[self._system_ref.chemical_field.ATP_index])
+            waste_level = float(local_field[self._system_ref.chemical_field.waste_index])
+            nutrient_level = float(local_field[self._system_ref.chemical_field.nutrient_index])
+            env_pressure = np.clip(atp_level - waste_level + nutrient_level, -1.0, 1.0)
+            env_factor = 1.0 + 0.5 * env_pressure
+            for key in phenotype.keys():
+                if key not in {'aging_resistance', 'movement_response', 'interaction_mode'}:
+                    phenotype[key] *= env_factor
+            return phenotype
+
+        # ── 旧模式（12 种不同公式）────────────────────────────────
         # 将基因分段，每段控制不同参数
         genome_len = len(self.genome)
         seg_len = max(1, genome_len // 8)  # 分8段，更细粒度控制

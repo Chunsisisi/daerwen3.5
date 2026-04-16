@@ -5,6 +5,9 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19604736.svg)](https://doi.org/10.5281/zenodo.19604736)
+[![Active Research](https://img.shields.io/badge/status-active%20research-brightgreen)](RESEARCH_STATUS.md)
+
+> 📋 **[Research Status & Open Bottlenecks](RESEARCH_STATUS.md)** — current state of validation, identified architectural limits, and the path forward (Phase C: physics-grounded chemistry).
 
 **DAERWEN** (Darwin-inspired Emergent World Engine) is a research platform exploring how intelligence can emerge from simple physical rules, chemical interactions, and genetic evolution—without hardcoded behaviors.
 
@@ -20,7 +23,7 @@ This project was built entirely with AI agent assistance. My English is limited,
 
 ---
 
-🎯 **Core Philosophy**: Avoid the "Designer's Trap" by minimizing arbitrary priors and maximizing emergence.
+🎯 **Core Philosophy**: Minimize the "Designer's Trap" by reducing arbitrary priors and maximizing emergence. A floor of priors is unavoidable (you can't simulate from the Big Bang) — the discipline is to keep pushing it lower and stay honest about where it sits.
 
 ---
 
