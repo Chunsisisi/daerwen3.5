@@ -1,31 +1,39 @@
 """
 Chemistry-grounded gene expression layer.
 
-Replaces the 12 hand-crafted gene→phenotype formulas in core.py's
-`_express_genes` with a single uniform principle:
+This module is now a thin Python wrapper around the actual Rust chem_sim
+implementation (compiled via maturin/pyo3 from chem_sim_rs/python/).
 
-    phenotype_i = min_i + range_i * f_i(base_frequencies)
+If the Rust module is unavailable for some reason, falls back to a pure-
+Python emulation so the rest of DAERWEN keeps working — but the fallback
+is slower and approximate. Real production runs should use the Rust module.
 
-where f_i is a simple linear combination of base frequencies (A/U/G/C)
-in the gene chain. The only designer choice is "which base controls which
-phenotype" — much smaller than the previous "12 different math functions".
-
-Conceptually, this treats each particle's genome as a chemical chain of
-A/U/G/C atoms (matching chem_sim_rs semantics). Replication uses
-template-style copying with mutation. Phenotype is composition.
-
-This is the MINIMUM VIABLE integration of chem_sim concepts into DAERWEN.
-A future version (pyo3 binding to chem_sim_rs) would replace this Python
-emulation with the actual Rust chemistry.
+API:
+  express_phenotypes_from_composition(genome) -> dict
+  replicate_chain_with_mutation(parent, rng, mutation_rate, complementary) -> ndarray
+  base_frequencies(genome) -> dict
+  chain_to_string(genome) -> str
 """
 from __future__ import annotations
-from typing import Dict, Sequence
+from typing import Dict
 import numpy as np
 
+# ── Try to use the Rust chem_sim module ──────────────────────────────
+_USING_RUST = False
+try:
+    import chem_sim as _rust
+    _USING_RUST = True
+except ImportError:
+    _rust = None
 
-# Base alphabet: 0=A, 1=U, 2=G, 3=C  (matches chem_sim_rs)
+
+# Base alphabet: 0=A, 1=U, 2=G, 3=C
 N_BASES = 4
-COMPLEMENT = {0: 1, 1: 0, 2: 3, 3: 2}  # A↔U, G↔C
+COMPLEMENT = {0: 1, 1: 0, 2: 3, 3: 2}
+
+
+def is_using_rust() -> bool:
+    return _USING_RUST
 
 
 def base_frequencies(genome: np.ndarray) -> Dict[str, float]:
@@ -47,40 +55,33 @@ def express_phenotypes_from_composition(
     Compute the 12 DAERWEN phenotypes from base composition.
 
     All formulas use the same uniform shape:
-        normalized = clip(2 * freq, 0, 1)         # 0.25 random → 0.5 mid
+        normalized = clip(2 * freq, 0, 1)
         value = MIN + (MAX - MIN) * normalized
 
     For random genomes, every base has freq ≈ 0.25, so normalized ≈ 0.5,
-    which is the midpoint of every phenotype range. This means a population
-    of random genotypes starts at the *centre* of phenotype space, and
-    selection can push values toward either extreme (more or less of a base
-    in the genome).
-
-    There is no `tanh`, `sin`, `sigmoid`, or `std` selectively applied to
-    specific segments — those choices were the Designer's Trap. The single
-    uniform principle here is: phenotype = position-on-axis(base frequency).
-
-    Designer choice that remains: which base controls which phenotype.
-    A future fully-emergent version would derive this from chemistry too.
+    placing every phenotype at the midpoint of its range.
     """
+    if _USING_RUST:
+        # Convert numpy array to a list of u8 for Rust
+        chain_list = [int(b) % 4 for b in genome]
+        return dict(_rust.phenotypes_from_chain(chain_list))
+
+    # ── Python fallback ────────────────────────────────────────────────
     f = base_frequencies(genome)
 
     def norm(freq: float) -> float:
-        """0.25 (random) → 0.5; 0.0 → 0.0; 0.5+ → 1.0"""
         return min(1.0, 2.0 * freq)
 
     def lerp(low: float, high: float, freq: float) -> float:
         return low + (high - low) * norm(freq)
 
     return {
-        # Hard parameters (driven by purines A, G)
         'field_interaction':         lerp(-1.0,  1.0, f['G']),
         'replication_threshold':     lerp( 0.5,  4.0, f['A']),
         'interaction_mode':          lerp(-1.0,  1.0, f['A']),
         'conversion_threshold':      lerp( 0.0,  1.0, f['G']),
         'interaction_threshold':     lerp( 0.0,  1.0, f['A']),
         'cooperation_threshold':     lerp( 0.0,  1.0, f['G']),
-        # Soft parameters (driven by pyrimidines U, C)
         'movement_response':         lerp( 0.0,  2.0, f['U']),
         'aging_resistance':          lerp( 0.0,  2.0, f['C']),
         'replication_energy_split':  lerp( 0.3,  0.7, f['U']),
@@ -99,15 +100,23 @@ def replicate_chain_with_mutation(
     """
     Template-style copy with optional Watson-Crick complementarity.
 
-    In chem_sim's R_pair, each new-strand atom is recruited based on the
-    template-strand atom: faithful (same type) or complementary (A↔U, G↔C).
-    Mutations occur at the recruitment step.
-
-    Faithful mode produces direct copies (with errors).
-    Complementary mode requires two replication rounds to recover the
-    original sequence, doubling effective mutation pressure per generation.
+    Uses Rust chem_sim if available (faster, deterministic seed via numpy rng).
+    Falls back to pure Python if not.
     """
     parent = np.asarray(parent_genome, dtype=np.int8)
+    if _USING_RUST:
+        # Generate a deterministic seed from the rng so Rust is reproducible
+        seed = int(rng.integers(0, 2**63 - 1))
+        chain_list = [int(b) % 4 for b in parent]
+        offspring_list = _rust.replicate_chain(
+            chain_list,
+            mutation_rate=float(mutation_rate),
+            complementary=complementary,
+            seed=seed,
+        )
+        return np.asarray(offspring_list, dtype=np.int8)
+
+    # ── Python fallback ────────────────────────────────────────────────
     offspring = np.empty_like(parent)
     for i, base in enumerate(parent):
         target = COMPLEMENT[int(base)] if complementary else int(base)
@@ -120,4 +129,6 @@ def replicate_chain_with_mutation(
 
 def chain_to_string(genome: np.ndarray) -> str:
     """Human-readable chain representation."""
+    if _USING_RUST:
+        return _rust.chain_to_string([int(b) % N_BASES for b in genome])
     return ''.join('AUGC'[int(b) % N_BASES] for b in genome)

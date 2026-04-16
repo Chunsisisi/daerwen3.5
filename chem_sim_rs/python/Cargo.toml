@@ -1,0 +1,18 @@
+[package]
+name        = "chem_sim_py"
+version.workspace     = true
+edition.workspace     = true
+authors.workspace     = true
+license.workspace     = true
+repository.workspace  = true
+
+[lib]
+name = "chem_sim"
+path = "src/lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+chem_sim_core = { path = "../core" }
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py310"] }
+rand = { workspace = true }
+rand_pcg = { workspace = true }

@@ -1,0 +1,16 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "chem_sim"
+version = "0.1.0"
+description = "Python bindings for chem_sim_rs (Rust artificial chemistry)"
+requires-python = ">=3.10"
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "Hou Zehao" }]
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+module-name = "chem_sim"
+manifest-path = "Cargo.toml"

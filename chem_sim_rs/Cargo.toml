@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["core"]
-# Phase 2 will add: "cli" (standalone benchmark binary), "python" (pyo3 bindings)
+members = ["core", "python"]
+# Phase 2 will add: "cli" (standalone benchmark binary)
 
 [workspace.package]
 version = "0.1.0"
