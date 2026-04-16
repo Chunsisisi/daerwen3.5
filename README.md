@@ -23,6 +23,47 @@ This project was built entirely with AI agent assistance. My English is limited,
 
 ---
 
+## 🧭 Where This Project Stands
+
+This is **a genuinely new research direction**, not a variation on existing ML pipelines. Its theoretical framework has reached **logical closure** — physics → chemistry → genetics → evolutionary learning forms a self-consistent substrate for intelligence to emerge from.
+
+The current implementation is an **initial version in which the designer's fingerprints are still visible**. Even so, we have already observed real learning-like properties: strong resistance to forgetting, stable recovery from catastrophic disturbance, and adaptation to noisy environments. These are not simulated — they are measured (see [Current Status](#-current-status--limitations)).
+
+The ongoing task is to **progressively reduce arbitrary priors** and let more of the system's behavior emerge from the substrate itself, rather than from choices made by the designer.
+
+---
+
+## 🧠 What This System Actually Is
+
+The clearest mental model: **DAERWEN is the subconscious substrate that could let an LLM run the way a human brain does.**
+
+### Population evolution *is* population intelligence
+
+There is no separate "memory module" in this system, by design. **The distribution of genes across the population is the memory.** Behaviors that help survival persist in the gene pool; behaviors that don't are diluted out over generations. This isn't simulated memory — it is emergent memory, the same mechanism biology has used for billions of years. A population of 500 particles carrying evolved genes *is* a stored representation of everything the system has encountered.
+
+### Continuous operation vs. stateless inference
+
+An LLM is fundamentally **stateless**: each inference starts from cold context, driven entirely by the prompt. A human brain is not like this. The subconscious runs 24/7 — heartbeat, hormones, autonomic responses, background consolidation, dreaming. DAERWEN is designed to be that layer:
+
+- **LLM** = conscious, on-demand, symbolic, fast — the tip of the iceberg
+- **DAERWEN** = subconscious, always-on, biochemical-ecological, slow — the mass underneath
+
+A continuously evolving ecology doesn't just "remember" its environment — it *is* shaped by it, moment to moment, whether or not anyone is asking questions.
+
+### Output is hormone, not text
+
+The system's outputs are **multi-channel continuous signals** — analogous to hormone levels, muscle tone, emotional state, arousal. Not language. The upper layer (LLM, when present) translates these states into symbolic reasoning when needed, just as a conscious mind translates feelings into words. **Brute text output is the wrong level of abstraction for this substrate.**
+
+### Input is sensory, not text
+
+The central argument: **DAERWEN is designed not to take direct text input.**
+
+Humans don't have text injected into their brains. We see shapes and hear sounds; "text" is a pattern built on top of the visual and auditory channels through learning. The same logic applies here. DAERWEN is intended to receive the full multi-modal sensory bandwidth — spatial patterns (vision-like), temporal oscillations (audio-like), chemical gradients (olfaction-like), contact forces (touch-like) — and it can in principle accept bands humans lack, such as infrared or ultrasonic. If symbolic content reaches the system at all, the more consistent approach is for it to enter through the same sensory channels as everything else.
+
+This is the main reason DAERWEN does not look like any other AI project: it is trying to be the **substrate underneath symbolic intelligence**, not another re-implementation of symbolic intelligence.
+
+---
+
 ## 🌟 What Makes This Different?
 
 Unlike traditional AI approaches:
@@ -294,12 +335,10 @@ It helps others discover this work and motivates continued development.
 
 ---
 
-**Status**: Active research (as of March 2026)  
-**Version**: 3.5 (Stable branch with optimal parameters)  
+**Status**: Active research (as of April 2026)  
+**Version**: 3.5 — initial implementation of the closed theoretical framework; learning properties observed, designer's fingerprints still visible  
 **Maintainer**: Hou Zehao ([@Chunsisisi](https://github.com/Chunsisisi))
 
 ---
 
-> "In creating artificial life, we don't just create life—we re-examine the nature of life, the origin of rules, and the possible truth of the universe."
-> 
-> — From the 8-hour philosophical discussion
+> "In creating artificial life, we don't just create life — we re-examine the nature of life, the origin of rules, and the possible truth of the universe."
