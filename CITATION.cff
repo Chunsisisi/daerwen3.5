@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use DAERWEN in your research, please cite it as below."
+title: "DAERWEN: Physics-Grounded Ecological Intelligence"
+abstract: >-
+  DAERWEN (Darwin-inspired Emergent World Engine) is a research platform
+  exploring how intelligence can emerge from simple physical rules,
+  chemical interactions, and genetic evolution, without hardcoded
+  behaviors. It is proposed as a subconscious substrate capable of
+  running continuously beneath a symbolic (LLM) conscious layer.
+type: software
+authors:
+  - family-names: "Hou"
+    given-names: "Zehao"
+    alias: "Chunsisisi"
+repository-code: "https://github.com/Chunsisisi/daerwen3.5"
+url: "https://github.com/Chunsisisi/daerwen3.5"
+license: AGPL-3.0-or-later
+version: "3.5.0"
+date-released: "2026-04-16"
+keywords:
+  - artificial-life
+  - artificial-general-intelligence
+  - emergence
+  - evolutionary-computation
+  - continual-learning
+  - ecology-simulation
+  - physics-simulation
+  - chemical-dynamics
+  - subconscious-ai
+  - dual-process-ai
