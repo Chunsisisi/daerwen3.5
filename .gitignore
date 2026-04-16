@@ -34,8 +34,11 @@ nohup.out
 *_backup
 *_old
 
-# Benchmark results (optional - comment out if you want to track)
+# Benchmark results — default ignored; commit specific files with `git add -f` to include sample results
 benchmark_results/
+
+# Checkpoints — binary training snapshots (can be regenerated)
+checkpoints/
 
 # OS
 .DS_Store

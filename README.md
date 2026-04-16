@@ -73,22 +73,47 @@ python tests/benchmarks/unconscious_learning_suite.py
 
 ---
 
-## 📊 Validated Capabilities
+## 📊 Current Status & Limitations
 
-Our system demonstrates:
+**We choose to be upfront about what this system does and doesn't do.**
 
-### ✅ Continual Learning
-- **BWT (Backward Transfer)**: -0.012 (minimal forgetting)
-- **FWT (Forward Transfer)**: +0.011 (positive knowledge transfer)
-- **FAP (Final Average Performance)**: 0.656
+### What works (measured on current benchmark v2)
 
-### ✅ Implicit Pattern Extraction
-- Level 1 Score: 0.736 (adapts to statistical regularities without explicit goals)
+| Capability | Score | Notes |
+|-----------|-------|-------|
+| **Forgetting resistance** | avg_forgetting ≈ 0.014 | Extremely low — the system doesn't "unlearn" past environments |
+| **Noise robustness** | 0.88–0.98 | Survives and adapts under strong environmental noise |
+| **Catastrophe recovery** | 1.0 | Recovers from mass extinction events |
+| **Backward transfer (BWT)** | ±0.05 | Essentially flat — past tasks neither improve nor degrade |
 
-### ✅ Niche Specialization
-- Spatial Distribution Score: 0.857 (population self-organizes into ecological niches)
+### What does NOT work yet
 
-**These are system-level learning metrics** (population adaptation), not individual-level learning.
+| Limitation | Current value | What it means |
+|-----------|---------------|---------------|
+| **Final Average Performance (FAP)** | 0.05–0.11 | System barely beats pure-physics baseline on spatial tasks |
+| **Overall grade** | F (35–37 / 100) | On a CL-style benchmark, it fails hard |
+| **Task-specific adaptation speed** | Too slow | 200 training steps is nowhere near enough evolutionary cycles |
+| **Physics baseline stability** | High variance | Same task, two runs → baselines vary 0.47 ↔ 0.74; benchmark itself is noisy |
+
+### Why the F grade doesn't mean the system is broken
+
+The current benchmark (`brutal_benchmark_fast.py`) was designed to measure *sequential task adaptation* in the tradition of continual-learning literature (Lopez-Paz & Ranzato 2017). That is a good fit for neural networks trained by gradient descent. It is a **poor fit** for an evolutionary ecology:
+
+- Evolution operates on generations, not training steps
+- The system's hypothesized strength is **simultaneous multi-modal integration**, not sequential task switching
+- Physics baselines dominate alignment scores when particles naturally cluster in gradient wells
+
+**What we're working on next** is a different benchmark — **signal-reward decoupling under simultaneous multi-modal input** — which tests what this system is actually theoretically good at (associating arbitrary sensory signals with energy rewards through evolutionary pressure, rather than hard-coded chemotaxis).
+
+Sample result files live in [`benchmark_results/`](benchmark_results/).
+
+---
+
+## 🤖 Development Approach
+
+**All code, tests, and documentation are written by AI agents under human direction.** The human contributor provides vision, judgment, and course-correction; implementation and iteration are done by AI.
+
+This is not a limitation to hide — it is **part of the experiment**. If physics-grounded ecological intelligence is a viable path, it should be explorable by a single person with AI leverage, not only by funded research groups. The openness of the code is also a record of what AI-assisted research can produce when aimed at first-principles problems.
 
 ---
 
@@ -122,23 +147,17 @@ Our system demonstrates:
 
 ## 📚 Documentation
 
-### For Philosophers
-- [**Philosophy Overview**](../PHILOSOPHY_OVERVIEW.md) — The Designer's Trap, Dual-Process AGI, Universe Simulation Hypothesis
-- [Philosophical Discussion Record (8-hour deep dive)](docs/notes/哲学讨论记录-从设计师陷阱到宇宙本质.md)
-
 ### For Researchers
 - [AGI Vision & Roadmap](docs/AGI_VISION.md) — Emergence-driven path to AGI
 - [Genotype→Phenotype First Principles](docs/design/GENOTYPE_TO_PHENOTYPE_FIRST_PRINCIPLES.md) — Multi-layer expression theory
-- [Learning Test Suite Design](tests/unconscious_learning_suite.py) — World's first unconscious learning benchmark
+- [Dual-Process AGI Architecture](docs/notes/DUAL_PROCESS_AGI.md) — Subconscious engine + conscious LLM design
+- [Unconscious Learning Test Suite](tests/benchmarks/unconscious_learning_suite.py) — Pattern extraction without explicit goals
 
 ### For Engineers
 - [Core Overview](docs/CORE_OVERVIEW.md) — Technical architecture
 - [API Reference](docs/API_REFERENCE.md) — ExternalInput/SystemOutput specification
 - [MVS Runbook](docs/MVS_RUNBOOK.md) — Minimal Viable System setup
-
-### For Everyone
-- [Project Map](../PROJECT_MAP.md) — Navigate 100+ documents
-- [Reading Guide](../READING_GUIDE.md) — Tailored paths for different roles
+- [Engineering Spec & Guardrails](docs/design/ENGINEERING_SPEC_AND_GUARDRAILS.md) — Invariants and safety rails
 
 ---
 
@@ -225,11 +244,24 @@ GNU Affero General Public License v3.0 - See [LICENSE](LICENSE) for details.
 
 ---
 
-## 🙏 Acknowledgments
+## 🙏 Acknowledgments & Specific Inspirations
 
-- **Philosophical Foundation**: 8-hour discussion on the nature of design, emergence, and intelligence
-- **Testing Methodology**: Inspired by Lopez-Paz & Ranzato (2017) continual learning metrics
-- **Architecture**: Influenced by Active Inference and Free Energy Principle
+This project stands on the shoulders of prior work. We list below *specific* inspirations, with the corresponding code location where the idea landed:
+
+### Theoretical & architectural
+- **Active Inference / Free Energy Principle** (Friston, 2010-present) — shaped the "environment-driven adaptation without reward function" philosophy throughout `engine/core.py`
+- **Turing's reaction-diffusion systems** (Turing, 1952) — basis for the multi-species chemical dynamics in `engine/core.py`
+- **Lenia / Tierra / Avida** — the lineage of emergent digital life; DAERWEN's substrate choice (physics+chemistry+genetics, not pure math/cells/instructions) is defined *against* these
+
+### Benchmark methodology
+- **Lopez-Paz & Ranzato (2017)** *Gradient Episodic Memory* — the BWT/FWT/FAP metrics and evaluation matrix pattern in [`tests/benchmarks/brutal_benchmark_fast.py`](tests/benchmarks/brutal_benchmark_fast.py)
+- **SICR** *Statistically-Induced Chunking Recall* — inspired Level-1 implicit pattern extraction test in [`tests/benchmarks/unconscious_learning_suite.py`](tests/benchmarks/unconscious_learning_suite.py)
+- **CADI / Order Parameters** — chaos-aware design index used as the conceptual basis for the Level-2 test in the same file
+- **MetrIntMeas / Swarm Intelligence Metrics** — basis for the Level-3 collective behavior metric in the same file
+
+### Design concepts that shaped this project
+- **"Designer's Trap"** — the principle that every arbitrary prior a designer writes into a system becomes a ceiling on emergence. Motivates the minimal-rule substrate philosophy.
+- **Dual-Process architecture** — subconscious ecology engine (always-on evolutionary substrate) paired with a conscious LLM layer (on-demand symbolic reasoning). See [`docs/notes/DUAL_PROCESS_AGI.md`](docs/notes/DUAL_PROCESS_AGI.md).
 
 ---
 

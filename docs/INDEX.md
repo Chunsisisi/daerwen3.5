@@ -8,13 +8,12 @@
 
 ## 类型文档（当前整理视图）
 
-- `docs/types/PHILOSOPHY_AND_THEORY.md`
-- `docs/types/GENOTYPE_TO_PHENOTYPE_FIRST_PRINCIPLES.md`
-- `docs/types/GENOTYPE_TO_PHENOTYPE_TASK_CARDS.md`
-- `docs/types/ENGINEERING_SPEC_AND_GUARDRAILS.md`
-- `docs/types/ROADMAP_AND_RESEARCH.md`
-- `docs/types/OPERATIONS_AND_EXPERIMENTS.md`
-- `docs/types/ARCHIVE_AND_DEPRECATED.md`
+- `docs/design/GENOTYPE_TO_PHENOTYPE_FIRST_PRINCIPLES.md`
+- `docs/design/GENOTYPE_TO_PHENOTYPE_TASK_CARDS.md`
+- `docs/design/ENGINEERING_SPEC_AND_GUARDRAILS.md`
+- `docs/design/ROADMAP_AND_RESEARCH.md`
+- `docs/design/OPERATIONS_AND_EXPERIMENTS.md`
+- `docs/archive/ARCHIVE_AND_DEPRECATED.md`
 
 ## 公式层文档（已迁移）
 
@@ -29,7 +28,6 @@
 - `docs/AGI_VISION.md`
 - `docs/MVS_RUNBOOK.md`
 - `docs/V2_HARDENING_CHECKLIST.md`
-- `docs/notes/哲学讨论记录-从设计师陷阱到宇宙本质.md`
 - `docs/notes/DUAL_PROCESS_AGI.md`
 - `docs/notes/project_review.md`
 - `docs/notes/project_snapshot_daerwen3.5.md`
@@ -40,5 +38,4 @@
 ## 组织策略
 
 - 合理但冲突的观点保留，并在类型文档中用 `CONFLICT:` 标注。
-- 哲学逻辑链保持完整，只优化表达和结构。
-- 仅从“主线决策流”中剔除明显过时或明显不合理内容。
+- 仅从”主线决策流”中剔除明显过时或明显不合理内容。

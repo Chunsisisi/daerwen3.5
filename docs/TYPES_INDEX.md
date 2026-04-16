@@ -2,15 +2,13 @@
 
 本索引按“文档类型”组织，不再按时间线组织。
 
-## A类：哲学与理论
+## A类：基因型-表现型理论
 
-- `docs/types/PHILOSOPHY_AND_THEORY.md`
-- `docs/types/GENOTYPE_TO_PHENOTYPE_FIRST_PRINCIPLES.md`
-- `docs/types/GENOTYPE_TO_PHENOTYPE_TASK_CARDS.md`
+- `docs/design/GENOTYPE_TO_PHENOTYPE_FIRST_PRINCIPLES.md`
+- `docs/design/GENOTYPE_TO_PHENOTYPE_TASK_CARDS.md`
 
 来源文档：
 
-- `docs/notes/哲学讨论记录-从设计师陷阱到宇宙本质.md`
 - `docs/notes/DUAL_PROCESS_AGI.md`
 - `docs/notes/新的想法和思路.txt`
 
@@ -70,4 +68,3 @@
 
 - 合理但互相冲突的观点必须保留。
 - 每处冲突统一使用 `CONFLICT:` 标记，并给出双方观点。
-- 哲学推理链路不能删除，只允许优化表达结构。

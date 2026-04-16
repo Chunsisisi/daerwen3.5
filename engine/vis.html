@@ -280,13 +280,13 @@ function drawShape(x, y, size, shape) {
 // ── 特效系统 ─────────────────────────────────────────────────────────────────
 // effect: { type, x, y, t, maxT, [x2, y2, color, ...] }
 function spawnReplication(x, y, color) {
-    effects.push({ type: 'ring', x, y, color, t: 0, maxT: 35 });
+    addEffect({ type: 'ring', x, y, color, t: 0, maxT: 30 });
 }
 function spawnDeath(x, y, color) {
-    effects.push({ type: 'death', x, y, color, t: 0, maxT: 25 });
+    addEffect({ type: 'death', x, y, color, t: 0, maxT: 18 });
 }
 function spawnInteraction(x1, y1, x2, y2, strength, predatorHue = 40) {
-    effects.push({ type: 'link', x: x1, y: y1, x2, y2, strength, hue: predatorHue, t: 0, maxT: 8 });
+    addEffect({ type: 'link', x: x1, y: y1, x2, y2, strength, hue: predatorHue, t: 0, maxT: 8 });
 }
 function triggerFlash(color, duration = 600) {
     const el = document.getElementById('flash');
@@ -299,6 +299,8 @@ function triggerFlash(color, duration = 600) {
     }, 150);
 }
 
+const MAX_EFFECTS = 120;  // 防止大种群时特效堆积
+
 function tickEffects() {
     const alive = [];
     for (const ef of effects) {
@@ -306,6 +308,10 @@ function tickEffects() {
         if (ef.t < ef.maxT) alive.push(ef);
     }
     effects = alive;
+}
+
+function addEffect(ef) {
+    if (effects.length < MAX_EFFECTS) effects.push(ef);
 }
 
 function drawEffects(scaleX, scaleY) {
@@ -343,44 +349,45 @@ function drawEffects(scaleX, scaleY) {
 }
 
 // ── 化学场背景 ───────────────────────────────────────────────────────────────
-let atpCanvas   = null;
-let atpCtx      = null;
-let atpDirty    = true;
+let fieldCanvas = null;
+let fieldCtx    = null;
+let lastAtp     = null;
+let lastNutrient = null;
 
-function buildAtpTexture(grid) {
-    if (!grid || !grid.length) return;
-    const rows = grid.length;
-    const cols = grid[0].length;
-    if (!atpCanvas) {
-        atpCanvas = document.createElement('canvas');
-        atpCtx    = atpCanvas.getContext('2d');
+function buildFieldTexture(atp, nutrient) {
+    if (!atp || !atp.length) return;
+    const rows = atp.length;
+    const cols = atp[0].length;
+    if (!fieldCanvas) {
+        fieldCanvas = document.createElement('canvas');
+        fieldCtx    = fieldCanvas.getContext('2d');
     }
-    atpCanvas.width  = cols;
-    atpCanvas.height = rows;
-    const imgData = atpCtx.createImageData(cols, rows);
+    fieldCanvas.width  = cols;
+    fieldCanvas.height = rows;
+    const imgData = fieldCtx.createImageData(cols, rows);
     const d = imgData.data;
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-            const v = Math.min(grid[r][c] / 2.5, 1);
+            const a = Math.min((atp[r]?.[c] ?? 0) / 2.0, 1);       // ATP → 绿色
+            const n = Math.min((nutrient?.[r]?.[c] ?? 0) / 1.5, 1); // Nutrient → 琥珀色
             const idx = (r * cols + c) * 4;
-            d[idx]   = 0;
-            d[idx+1] = Math.round(v * 55);   // subtle green
-            d[idx+2] = Math.round(v * 25);
-            d[idx+3] = Math.round(v * 80);
+            // ATP: 绿色通道为主，加少量蓝（冷绿）
+            d[idx]   = Math.round(n * 200);           // 红（nutrient 贡献橙色）
+            d[idx+1] = Math.round(a * 160 + n * 80); // 绿（ATP主）
+            d[idx+2] = Math.round(a * 40);            // 蓝（低）
+            d[idx+3] = Math.round(Math.max(a * 130, n * 160)); // alpha
         }
     }
-    atpCtx.putImageData(imgData, 0, 0);
-    atpDirty = false;
+    fieldCtx.putImageData(imgData, 0, 0);
 }
 
-function drawAtpField() {
-    if (!atpCanvas) return;
+function drawChemField() {
+    if (!fieldCanvas) return;
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
-    // scale atpCanvas to fill screen, accounting for view transform
     const [x0, y0] = worldToScreen(0, 0);
     const [x1, y1] = worldToScreen(worldSize, worldSize);
-    ctx.drawImage(atpCanvas, x0, y0, x1 - x0, y1 - y0);
+    ctx.drawImage(fieldCanvas, x0, y0, x1 - x0, y1 - y0);
     ctx.restore();
 }
 
@@ -575,11 +582,8 @@ function render() {
 
     const { positions, energies, ids, genomes } = state.particles;
 
-    // ATP 化学场背景
-    drawAtpField();
-
-    // 特效（在粒子下层）
-    drawEffects();
+    // 化学场背景（ATP=绿，Nutrient=琥珀）
+    drawChemField();
 
     // ── 粒子（加法混合：粒子成为光源，聚集区自动变亮）────────────────
     ctx.save();
@@ -622,7 +626,7 @@ function render() {
     ctx.restore();
     // ──────────────────────────────────────────────────────────────────
 
-    // 特效（在粒子上层）
+    // 特效（粒子上层，只画一次）
     drawEffects();
     tickEffects();
 
@@ -675,10 +679,12 @@ function connect() {
             viewFitted = true;
         }
 
-        // 化学场
-        const atp = data.chemical_field?.atp || data.visualization?.chemical_field?.atp;
+        // 化学场（ATP + Nutrient）
+        const cf = data.chemical_field || data.visualization?.chemical_field || {};
+        const atp      = cf.atp;
+        const nutrient = cf.nutrient;
         if (atp && atp.length) {
-            buildAtpTexture(atp);
+            buildFieldTexture(atp, nutrient);
         }
 
         // 事件检测
