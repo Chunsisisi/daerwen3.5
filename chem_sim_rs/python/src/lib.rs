@@ -216,6 +216,114 @@ impl ChainWorld {
         Ok(list.into())
     }
 
+    // ── Level 2: spatial query / consume / inject API ──────────────
+
+    /// Count alive atoms of given ctype within `radius` of (x, y).
+    /// Toroidal distance. Pass ctype=255 to count all types.
+    #[pyo3(signature = (x, y, radius, ctype=255))]
+    fn count_atoms_near(&self, x: f32, y: f32, radius: f32, ctype: u8) -> usize {
+        let r2 = radius * radius;
+        let ws = self.inner.config.world_size;
+        let half = ws * 0.5;
+        let mut n = 0usize;
+        for a in self.inner.atoms.iter() {
+            if !a.alive {
+                continue;
+            }
+            if ctype != 255 && a.ctype.as_u8() != ctype {
+                continue;
+            }
+            let mut dx = a.pos[0] - x;
+            let mut dy = a.pos[1] - y;
+            if dx > half { dx -= ws; } else if dx < -half { dx += ws; }
+            if dy > half { dy -= ws; } else if dy < -half { dy += ws; }
+            if dx * dx + dy * dy <= r2 {
+                n += 1;
+            }
+        }
+        n
+    }
+
+    /// Remove (kill) up to `max_count` alive atoms of given ctype within
+    /// `radius` of (x, y). Returns the number actually removed.
+    /// Pass ctype=255 to consume any free atom regardless of type.
+    /// Only atoms with no bonds (free monomers) are eligible — never
+    /// consume atoms that are part of a chain (those represent
+    /// structured molecules, not raw fuel).
+    #[pyo3(signature = (x, y, radius, max_count, ctype=255))]
+    fn consume_free_atoms_near(
+        &mut self,
+        x: f32,
+        y: f32,
+        radius: f32,
+        max_count: usize,
+        ctype: u8,
+    ) -> usize {
+        let r2 = radius * radius;
+        let ws = self.inner.config.world_size;
+        let half = ws * 0.5;
+        let mut consumed = 0usize;
+        for a in self.inner.atoms.iter_mut() {
+            if consumed >= max_count {
+                break;
+            }
+            if !a.alive {
+                continue;
+            }
+            // Only free monomers are "fuel"
+            if !a.is_free() {
+                continue;
+            }
+            if ctype != 255 && a.ctype.as_u8() != ctype {
+                continue;
+            }
+            let mut dx = a.pos[0] - x;
+            let mut dy = a.pos[1] - y;
+            if dx > half { dx -= ws; } else if dx < -half { dx += ws; }
+            if dy > half { dy -= ws; } else if dy < -half { dy += ws; }
+            if dx * dx + dy * dy <= r2 {
+                a.alive = false;
+                consumed += 1;
+            }
+        }
+        consumed
+    }
+
+    /// Inject `n` free atoms of given ctype, randomly placed in the world.
+    fn inject_random_atoms(&mut self, n: usize, ctype: u8) {
+        use chem_sim_core::atom::{AtomId, BaseType, Atom};
+        let ws = self.inner.config.world_size;
+        let bt = BaseType::from_u8(ctype);
+        // Reuse the World's RNG via .step() patterns isn't directly accessible,
+        // so we use a fresh thread-local PRNG seeded per call. Acceptable for
+        // injection events which don't need exact reproducibility.
+        let mut rng = rand::thread_rng();
+        for _ in 0..n {
+            let x: f32 = rng.gen_range(0.0..ws);
+            let y: f32 = rng.gen_range(0.0..ws);
+            let id = AtomId(self.inner.atoms.len() as u32);
+            self.inner.atoms.push(Atom::new(id, bt, [x, y]));
+        }
+    }
+
+    /// Inject `n` free atoms of given ctype, scattered around (cx, cy)
+    /// with given spread (Gaussian-like, uniform within radius).
+    #[pyo3(signature = (n, ctype, cx, cy, radius=4.0))]
+    fn inject_atoms_near(&mut self, n: usize, ctype: u8, cx: f32, cy: f32, radius: f32) {
+        use chem_sim_core::atom::{AtomId, BaseType, Atom};
+        let ws = self.inner.config.world_size;
+        let bt = BaseType::from_u8(ctype);
+        let mut rng = rand::thread_rng();
+        for _ in 0..n {
+            let dx: f32 = rng.gen_range(-radius..radius);
+            let dy: f32 = rng.gen_range(-radius..radius);
+            let x = (cx + dx).rem_euclid(ws);
+            let y = (cy + dy).rem_euclid(ws);
+            let id = AtomId(self.inner.atoms.len() as u32);
+            self.inner.atoms.push(Atom::new(id, bt, [x, y]));
+        }
+    }
+
     /// Compact statistics snapshot: dict with pair_events, link_events,
     /// release_events, replication_events, polymerize_events, break_events,
     /// mutation_events, n_atoms, n_chains.

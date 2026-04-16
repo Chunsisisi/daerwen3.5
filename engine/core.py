@@ -149,10 +149,17 @@ class Ecology2DConfig:
     death_waste_release: float = 0.5    # 死亡时能量转废物比例（修复守恒 bug）
     predation_heat_loss: float = 0.6    # 捕食能量热损失率（原隐式 = 1 - 0.4）
 
-    # === 第三层：基因表达模式 ===
-    # False = 12 种不同公式（旧设计师陷阱）
-    # True  = 统一的"碱基频率→表型"映射（chem_sim 启发）
-    use_chem_sim_genes: bool = True
+    # === 第四层：能量基底（Level 2 of chem_sim migration）===
+    # False = 能量来自连续 ATP 浓度场（旧）
+    # True  = 能量来自 chem_sim 世界里的离散 ATP 原子（新）
+    # 启用后：粒子根据周围 ATP 原子数量获取能量；solar 能量 = 注入新原子
+    use_chem_sim_energy: bool = False
+    chem_sim_atoms_per_step_solar: int = 5    # 每步注入的 ATP 原子数（原 50 太多）
+    chem_sim_max_atoms: int = 5000            # ATP 池容量上限，超过不再注入
+    chem_sim_initial_atoms: int = 2000        # 初始 ATP 原子池大小
+    chem_sim_consume_radius: float = 3.0      # 粒子吸收 ATP 的半径
+    chem_sim_atp_per_unit: float = 0.1        # 每个 ATP 原子转换成多少能量
+    chem_sim_step_interval: int = 5           # chem_sim 自身每 N 个 DAERWEN 步跑一次化学反应
 
 
 @dataclass
@@ -220,115 +227,23 @@ class Particle2D:
         self.phenotype = self._express_genes()
 
     def _express_genes(self) -> Dict[str, float]:
-        """基因表达：DNA序列 → 反应倾向参数（行为由局部环境调制）
+        """Gene expression: base composition → 12 phenotype parameters.
 
-        两种模式：
-          - chem_sim 模式（默认）：统一的"碱基频率→表型"映射
-          - 旧模式：12 种不同的数学公式（segment-by-segment）
+        Uses a single uniform principle (chem_sim-inspired):
+            phenotype_i = lerp(min_i, max_i, clip(2 * freq_of_base_i, 0, 1))
+
+        This replaced the earlier 12-distinct-formula approach (preserved in
+        `engine/_legacy_gene_expression.py`) because that version produced
+        extreme boom-or-bust population dynamics (σ of final population ~373
+        across seeds, vs ~225 here), making experiments non-reproducible.
+
+        Behavior is further modulated by local chemical environment
+        (atp/waste/nutrient gradient) via env_factor.
         """
-        # ── chem_sim 模式（少设计师陷阱）─────────────────────────
-        if self._system_ref is not None and getattr(self._system_ref.config, 'use_chem_sim_genes', False):
-            from engine.chem_sim_genes import express_phenotypes_from_composition
-            phenotype = express_phenotypes_from_composition(self.genome)
-            # 环境调制（保留与旧模式相同的局部环境响应逻辑）
-            local_field = self._system_ref.chemical_field.get_local_concentration(self.position)
-            atp_level = float(local_field[self._system_ref.chemical_field.ATP_index])
-            waste_level = float(local_field[self._system_ref.chemical_field.waste_index])
-            nutrient_level = float(local_field[self._system_ref.chemical_field.nutrient_index])
-            env_pressure = np.clip(atp_level - waste_level + nutrient_level, -1.0, 1.0)
-            env_factor = 1.0 + 0.5 * env_pressure
-            for key in phenotype.keys():
-                if key not in {'aging_resistance', 'movement_response', 'interaction_mode'}:
-                    phenotype[key] *= env_factor
-            return phenotype
+        from engine.chem_sim_genes import express_phenotypes_from_composition
+        phenotype = express_phenotypes_from_composition(self.genome)
 
-        # ── 旧模式（12 种不同公式）────────────────────────────────
-        # 将基因分段，每段控制不同参数
-        genome_len = len(self.genome)
-        seg_len = max(1, genome_len // 8)  # 分8段，更细粒度控制
-        
-        # 段0: 场交互强度 (-1到1，负=释放，正=吸收)
-        seg0 = self.genome[:seg_len]
-        field_interaction = float(np.tanh(np.sum(seg0) / len(seg0) - 1.5))
-        
-        # 段1: 移动敏感度 (0-2, 仅作为环境响应增益)
-        seg1 = self.genome[seg_len:2*seg_len]
-        movement_response = float(np.abs(np.std(seg1)) * 2)
-        
-        # 段2: 交互基线倾向 (-1到1, 实际交互由能量/化学场动态调制)
-        seg2 = self.genome[2*seg_len:3*seg_len]
-        interaction_mode = float(np.sin(np.sum(seg2)))
-        
-        # 段3: 复制阈值 (0.5-4)
-        seg3 = self.genome[3*seg_len:4*seg_len]
-        replication_threshold = 0.5 + float(np.mean(seg3) * 1.5)
-        
-        # 段4: 场转化阈值 (0-1)
-        seg4 = self.genome[4*seg_len:5*seg_len]
-        conversion_threshold = float((np.sum(seg4) % 10) / 10.0)
-        
-        # 段5: 交互强度阈值 (0-1)
-        seg5 = self.genome[5*seg_len:6*seg_len]
-        interaction_threshold = float(np.mean(seg5) / 4.0)
-        
-        # 段6: 合作倾向阈值 (0-1)
-        seg6 = self.genome[6*seg_len:7*seg_len]
-        sig_input = np.sum(seg6) / len(seg6) - 1.5
-        cooperation_threshold = float(1.0 / (1.0 + np.exp(-sig_input)))
-        
-        # 段7: 衰老抗性 (0-2，越高越长寿)
-        # 修复：使用固定边界 [7*seg_len : 8*seg_len]，不再吃掉所有剩余碱基
-        seg7 = self.genome[7*seg_len:8*seg_len]
-        aging_resistance = float(np.mean(seg7) / 2.0) if len(seg7) > 0 else 0.5
-
-        # === 第三层：扩展表型（从基因组 8*seg_len 之后的扩展区解码）===
-        # 每个新段固定 4 碱基；基因组不够长时使用 Config 中的默认值（向后兼容）
-        _EXT_SEG = 4
-        _ext_base = 8 * seg_len
-
-        def _decode_ext(n: int):
-            start = _ext_base + n * _EXT_SEG
-            end = start + _EXT_SEG
-            if end <= genome_len:
-                return self.genome[start:end]
-            return None
-
-        # 扩展段 0: inhibitor_sensitivity [0, 0.1]  (碱基均值 0~3 → /30)
-        _s8 = _decode_ext(0)
-        inhibitor_sensitivity = (float(np.mean(_s8)) / 30.0) if _s8 is not None \
-            else (self._system_ref.config.inhibitor_damage_coeff if self._system_ref else 0.02)
-
-        # 扩展段 1: chemotaxis_gene_strength [0, 0.15]  (碱基均值 0~3 → /20)
-        _s9 = _decode_ext(1)
-        chemotaxis_gene_strength = (float(np.mean(_s9)) / 20.0) if _s9 is not None \
-            else (self._system_ref.config.chemotaxis_strength if self._system_ref else 0.05)
-
-        # 扩展段 2: replication_energy_split [0.3, 0.7]  (碱基均值 0~3 → 0.3 + x*0.4/3)
-        _s10 = _decode_ext(2)
-        replication_energy_split = (0.3 + float(np.mean(_s10)) * 0.4 / 3.0) if _s10 is not None \
-            else 0.5
-
-        # 扩展段 3: atp_absorption_rate [0.05, 0.25]  (碱基均值 0~3 → 0.05 + x*0.2/3)
-        _s11 = _decode_ext(3)
-        atp_absorption_rate = (0.05 + float(np.mean(_s11)) * 0.2 / 3.0) if _s11 is not None \
-            else (self._system_ref.config.atp_absorption_scale if self._system_ref else 0.1)
-
-        phenotype = {
-            'field_interaction': field_interaction,
-            'movement_response': movement_response,
-            'interaction_mode': interaction_mode,
-            'replication_threshold': replication_threshold,
-            'conversion_threshold': conversion_threshold,
-            'interaction_threshold': interaction_threshold,
-            'cooperation_threshold': cooperation_threshold,
-            'aging_resistance': aging_resistance,
-            # 第三层新增
-            'inhibitor_sensitivity':     inhibitor_sensitivity,
-            'chemotaxis_gene_strength':  chemotaxis_gene_strength,
-            'replication_energy_split':  replication_energy_split,
-            'atp_absorption_rate':       atp_absorption_rate,
-        }
-        
+        # Environmental modulation (unchanged from before)
         if self._system_ref is not None:
             local_field = self._system_ref.chemical_field.get_local_concentration(self.position)
             atp_level = float(local_field[self._system_ref.chemical_field.ATP_index])
@@ -336,11 +251,9 @@ class Particle2D:
             nutrient_level = float(local_field[self._system_ref.chemical_field.nutrient_index])
             env_pressure = np.clip(atp_level - waste_level + nutrient_level, -1.0, 1.0)
             env_factor = 1.0 + 0.5 * env_pressure
-            
             for key in phenotype.keys():
                 if key not in {'aging_resistance', 'movement_response', 'interaction_mode'}:
                     phenotype[key] *= env_factor
-        
         return phenotype
     
     
@@ -689,7 +602,24 @@ class Ecology2DSystem:
             'interaction_events': 0,
         }
         self.input_history: List[Dict[str, Any]] = []
-        
+
+        # === Level 2 chem_sim energy substrate (optional) ===
+        self.chem_sim_world = None
+        if getattr(config, 'use_chem_sim_energy', False):
+            try:
+                import chem_sim as _cs
+                self.chem_sim_world = _cs.ChainWorld(
+                    world_size=float(config.world_size),
+                    seed=int(self.rng.integers(0, 2**63 - 1)),
+                )
+                self.chem_sim_world.inject_random_atoms(
+                    n=config.chem_sim_initial_atoms, ctype=0,  # ATP = ctype 0
+                )
+                print(f"   ✓ chem_sim 能量基底已启用（{config.chem_sim_initial_atoms} 个 ATP 原子）")
+            except ImportError:
+                print(f"   ⚠ use_chem_sim_energy=True 但 chem_sim 模块未装，回退到旧能量场")
+                self.chem_sim_world = None
+
         print(f"✅ 2D生态系统初始化完成")
         print(f"   世界大小: {config.world_size}×{config.world_size}")
         print(f"   初始粒子: {len(self.particles)}")
@@ -826,16 +756,41 @@ class Ecology2DSystem:
         energies = state['energies']
         ages = state['ages']
 
+        # === Level 2: chem_sim ATP energy substrate ===
+        if self.chem_sim_world is not None:
+            # Cap total atom count to avoid runaway accumulation
+            if self.chem_sim_world.n_atoms < self.config.chem_sim_max_atoms:
+                self.chem_sim_world.inject_random_atoms(
+                    self.config.chem_sim_atoms_per_step_solar, ctype=0
+                )
+            # Advance chem_sim chemistry only every N steps (much cheaper)
+            if self.time_step % self.config.chem_sim_step_interval == 0:
+                self.chem_sim_world.step(dt=1.0)
+
         for idx, (particle, local_field) in enumerate(zip(alive_particles, local_fields)):
             absorption_rate = field_interactions[idx]
 
             if absorption_rate > 0:
-                absorbed = self.chemical_field.consume(
-                    particle.position,
-                    self.chemical_field.ATP_index,
-                    abs(absorption_rate) * particle.phenotype.get('atp_absorption_rate', self.config.atp_absorption_scale)
-                )
-                particle.energy += absorbed
+                # When chem_sim energy is ON, it is the SOLE energy source
+                # (no double-dipping with the continuous ATP field).
+                if self.chem_sim_world is not None:
+                    max_atoms = max(1, int(absorption_rate * 5))
+                    consumed_atoms = self.chem_sim_world.consume_free_atoms_near(
+                        float(particle.position[0]),
+                        float(particle.position[1]),
+                        radius=self.config.chem_sim_consume_radius,
+                        max_count=max_atoms,
+                        ctype=0,
+                    )
+                    particle.energy += consumed_atoms * self.config.chem_sim_atp_per_unit
+                else:
+                    # Classic continuous-field absorption
+                    absorbed = self.chemical_field.consume(
+                        particle.position,
+                        self.chemical_field.ATP_index,
+                        abs(absorption_rate) * particle.phenotype.get('atp_absorption_rate', self.config.atp_absorption_scale)
+                    )
+                    particle.energy += absorbed
             else:
                 released = min(particle.energy * 0.05, particle.energy * 0.5)
                 if released > 0:
