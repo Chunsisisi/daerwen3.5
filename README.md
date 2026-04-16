@@ -4,6 +4,7 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19604736.svg)](https://doi.org/10.5281/zenodo.19604736)
 
 **DAERWEN** (Darwin-inspired Emergent World Engine) is a research platform exploring how intelligence can emerge from simple physical rules, chemical interactions, and genetic evolution—without hardcoded behaviors.
 
@@ -267,10 +268,21 @@ We welcome contributions! This is an **exploration**, not a finished product.
 
 If you use DAERWEN in your research, please cite:
 
+```bibtex
+@software{hou2026daerwen,
+  author       = {Hou, Zehao},
+  title        = {DAERWEN: Physics-Grounded Ecological Intelligence},
+  year         = {2026},
+  publisher    = {Zenodo},
+  version      = {3.5.0},
+  doi          = {10.5281/zenodo.19604736},
+  url          = {https://github.com/Chunsisisi/daerwen3.5}
+}
 ```
-Hou Zehao. DAERWEN: Physics-Grounded Ecological Intelligence (2026).
-GitHub: https://github.com/Chunsisisi/daerwen3.5
-```
+
+Or plain text:
+
+> Hou, Zehao. *DAERWEN: Physics-Grounded Ecological Intelligence* (v3.5.0). Zenodo, 2026. [https://doi.org/10.5281/zenodo.19604736](https://doi.org/10.5281/zenodo.19604736)
 
 ---
 

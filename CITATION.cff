@@ -14,6 +14,7 @@ authors:
     alias: "Chunsisisi"
 repository-code: "https://github.com/Chunsisisi/daerwen3.5"
 url: "https://github.com/Chunsisisi/daerwen3.5"
+doi: "10.5281/zenodo.19604736"
 license: AGPL-3.0-or-later
 version: "3.5.0"
 date-released: "2026-04-16"
