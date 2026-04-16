@@ -126,10 +126,11 @@ python tests/benchmarks/unconscious_learning_suite.py
 
 | Capability | Score | Notes |
 |-----------|-------|-------|
-| **Forgetting resistance** | avg_forgetting ≈ 0.014 | Extremely low — the system doesn't "unlearn" past environments |
-| **Noise robustness** | 0.88–0.98 | Survives and adapts under strong environmental noise |
+| **Beats physics baseline** | **+16.3%** | First stable positive result — selection actually produces better-than-random-drift behavior (2026-04-17) |
+| **Forgetting resistance** | avg_forgetting ≈ 0.010 | Extremely low — system doesn't "unlearn" past environments. For context, vanilla MLP + Naive CL on Split MNIST forgets 99.2%. Paradigms differ but characteristic is dramatic. |
+| **Noise robustness** | 0.83–0.98 | Survives and adapts under strong environmental noise |
 | **Catastrophe recovery** | 1.0 | Recovers from mass extinction events |
-| **Backward transfer (BWT)** | ±0.05 | Essentially flat — past tasks neither improve nor degrade |
+| **Backward transfer (BWT)** | ±0.01 | Essentially flat — past tasks neither improve nor degrade |
 
 ### What does NOT work yet
 

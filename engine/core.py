@@ -149,17 +149,6 @@ class Ecology2DConfig:
     death_waste_release: float = 0.5    # 死亡时能量转废物比例（修复守恒 bug）
     predation_heat_loss: float = 0.6    # 捕食能量热损失率（原隐式 = 1 - 0.4）
 
-    # === 第四层：能量基底（Level 2 of chem_sim migration）===
-    # False = 能量来自连续 ATP 浓度场（旧）
-    # True  = 能量来自 chem_sim 世界里的离散 ATP 原子（新）
-    # 启用后：粒子根据周围 ATP 原子数量获取能量；solar 能量 = 注入新原子
-    use_chem_sim_energy: bool = False
-    chem_sim_atoms_per_step_solar: int = 5    # 每步注入的 ATP 原子数（原 50 太多）
-    chem_sim_max_atoms: int = 5000            # ATP 池容量上限，超过不再注入
-    chem_sim_initial_atoms: int = 2000        # 初始 ATP 原子池大小
-    chem_sim_consume_radius: float = 3.0      # 粒子吸收 ATP 的半径
-    chem_sim_atp_per_unit: float = 0.1        # 每个 ATP 原子转换成多少能量
-    chem_sim_step_interval: int = 5           # chem_sim 自身每 N 个 DAERWEN 步跑一次化学反应
 
 
 @dataclass
@@ -603,23 +592,6 @@ class Ecology2DSystem:
         }
         self.input_history: List[Dict[str, Any]] = []
 
-        # === Level 2 chem_sim energy substrate (optional) ===
-        self.chem_sim_world = None
-        if getattr(config, 'use_chem_sim_energy', False):
-            try:
-                import chem_sim as _cs
-                self.chem_sim_world = _cs.ChainWorld(
-                    world_size=float(config.world_size),
-                    seed=int(self.rng.integers(0, 2**63 - 1)),
-                )
-                self.chem_sim_world.inject_random_atoms(
-                    n=config.chem_sim_initial_atoms, ctype=0,  # ATP = ctype 0
-                )
-                print(f"   ✓ chem_sim 能量基底已启用（{config.chem_sim_initial_atoms} 个 ATP 原子）")
-            except ImportError:
-                print(f"   ⚠ use_chem_sim_energy=True 但 chem_sim 模块未装，回退到旧能量场")
-                self.chem_sim_world = None
-
         print(f"✅ 2D生态系统初始化完成")
         print(f"   世界大小: {config.world_size}×{config.world_size}")
         print(f"   初始粒子: {len(self.particles)}")
@@ -756,41 +728,16 @@ class Ecology2DSystem:
         energies = state['energies']
         ages = state['ages']
 
-        # === Level 2: chem_sim ATP energy substrate ===
-        if self.chem_sim_world is not None:
-            # Cap total atom count to avoid runaway accumulation
-            if self.chem_sim_world.n_atoms < self.config.chem_sim_max_atoms:
-                self.chem_sim_world.inject_random_atoms(
-                    self.config.chem_sim_atoms_per_step_solar, ctype=0
-                )
-            # Advance chem_sim chemistry only every N steps (much cheaper)
-            if self.time_step % self.config.chem_sim_step_interval == 0:
-                self.chem_sim_world.step(dt=1.0)
-
         for idx, (particle, local_field) in enumerate(zip(alive_particles, local_fields)):
             absorption_rate = field_interactions[idx]
 
             if absorption_rate > 0:
-                # When chem_sim energy is ON, it is the SOLE energy source
-                # (no double-dipping with the continuous ATP field).
-                if self.chem_sim_world is not None:
-                    max_atoms = max(1, int(absorption_rate * 5))
-                    consumed_atoms = self.chem_sim_world.consume_free_atoms_near(
-                        float(particle.position[0]),
-                        float(particle.position[1]),
-                        radius=self.config.chem_sim_consume_radius,
-                        max_count=max_atoms,
-                        ctype=0,
-                    )
-                    particle.energy += consumed_atoms * self.config.chem_sim_atp_per_unit
-                else:
-                    # Classic continuous-field absorption
-                    absorbed = self.chemical_field.consume(
-                        particle.position,
-                        self.chemical_field.ATP_index,
-                        abs(absorption_rate) * particle.phenotype.get('atp_absorption_rate', self.config.atp_absorption_scale)
-                    )
-                    particle.energy += absorbed
+                absorbed = self.chemical_field.consume(
+                    particle.position,
+                    self.chemical_field.ATP_index,
+                    abs(absorption_rate) * particle.phenotype.get('atp_absorption_rate', self.config.atp_absorption_scale)
+                )
+                particle.energy += absorbed
             else:
                 released = min(particle.energy * 0.05, particle.energy * 0.5)
                 if released > 0:
