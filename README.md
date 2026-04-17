@@ -1,15 +1,15 @@
 # DAERWEN 3.5
 
-> **Physics-Grounded Ecological Intelligence: Exploring AGI Emergence from Minimal Rules**
+> **An Artificial Hippocampus: Population-Genetic Memory Through Ecological Evolution**
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19604736.svg)](https://doi.org/10.5281/zenodo.19604736)
 [![Active Research](https://img.shields.io/badge/status-active%20research-brightgreen)](RESEARCH_STATUS.md)
 
-> 📋 **[Research Status & Open Bottlenecks](RESEARCH_STATUS.md)** — current state of validation, identified architectural limits, and the path forward (Phase C: physics-grounded chemistry).
+> 📋 **[Research Status & Open Bottlenecks](RESEARCH_STATUS.md)** — validation results, architectural limits, and the path forward.
 
-**DAERWEN** (Darwin-inspired Emergent World Engine) is a research platform exploring how intelligence can emerge from simple physical rules, chemical interactions, and genetic evolution—without hardcoded behaviors.
+**DAERWEN** (Darwin-inspired Emergent World Engine) is a **hippocampus module** for larger AI systems. It uses population-level evolution in a 2D ecology to form, maintain, and recall memories — the same way biological hippocampus encodes experience through lossy, abstract, reconstructive storage.
 
 ---
 
@@ -39,48 +39,73 @@ The ongoing task is to **progressively reduce arbitrary priors** and let more of
 
 ## 🧠 What This System Actually Is
 
-The clearest mental model: **DAERWEN is the subconscious substrate that could let an LLM run the way a human brain does.**
+**DAERWEN is an artificial hippocampus** — a memory module that stores, maintains, and recalls experience through population-level evolution, not through databases or neural network weights.
 
-### Population evolution *is* population intelligence
+### Why "hippocampus"?
 
-There is no separate "memory module" in this system, by design. **The distribution of genes across the population is the memory.** Behaviors that help survival persist in the gene pool; behaviors that don't are diluted out over generations. This isn't simulated memory — it is emergent memory, the same mechanism biology has used for billions of years. A population of 500 particles carrying evolved genes *is* a stored representation of everything the system has encountered.
+The real hippocampus (in your brain right now):
+- Receives **abstract features** from the cortex, not raw pixels
+- Stores memories as **sparse, lossy patterns** — not recordings
+- Recalls by **reconstructing** from partial cues — which is why memories are creative and sometimes wrong
+- Encodes **stronger memories for emotional/dangerous events** — survival-relevant memories persist longer
+- Runs **continuously** — even during sleep (consolidation)
 
-### Continuous operation vs. stateless inference
+DAERWEN does all of these through a completely different mechanism: **population genetics**.
 
-An LLM is fundamentally **stateless**: each inference starts from cold context, driven entirely by the prompt. A human brain is not like this. The subconscious runs 24/7 — heartbeat, hormones, autonomic responses, background consolidation, dreaming. DAERWEN is designed to be that layer:
+### Population genetics *is* memory
 
-- **LLM** = conscious, on-demand, symbolic, fast — the tip of the iceberg
-- **DAERWEN** = subconscious, always-on, biochemical-ecological, slow — the mass underneath
+**The distribution of genes across the population is the memory.** An environment that kills particles with gene-X means gene-X disappears from the population forever. That disappearance IS the memory of "gene-X doesn't work here."
 
-A continuously evolving ecology doesn't just "remember" its environment — it *is* shaped by it, moment to moment, whether or not anyone is asking questions.
+- A population that survived a drought **remembers** the drought (drought-resistant genes dominate)
+- A population in a toxic zone **remembers** the toxin (toxin-avoidant genes spread)
+- Over time, mutations **drift** the memory — old memories fade unless reinforced (forgetting)
+- Strong selection events leave **deeper marks** — like emotional memories in real brains
 
-### Output is hormone, not text
+### Input: pre-processed features, not raw data
 
-The system's outputs are **multi-channel continuous signals** — analogous to hormone levels, muscle tone, emotional state, arousal. Not language. The upper layer (LLM, when present) translates these states into symbolic reasoning when needed, just as a conscious mind translates feelings into words. **Brute text output is the wrong level of abstraction for this substrate.**
+The real hippocampus never sees raw pixels. Visual information passes through 5-6 cortical layers before reaching it, arriving as abstract concepts ("cat", "kitchen", "morning").
 
-### Input is sensory, not text
+DAERWEN should receive **pre-processed feature vectors** (from CNN or other models), not raw sensor data. The feature vector is injected as **sparse, theta-rhythmic spike bursts** into specific regions of the 2D world — matching how the real hippocampus receives input.
 
-The central argument: **DAERWEN is designed not to take direct text input.**
+### Output: memory state, not text
 
-Humans don't have text injected into their brains. We see shapes and hear sounds; "text" is a pattern built on top of the visual and auditory channels through learning. The same logic applies here. DAERWEN is intended to receive the full multi-modal sensory bandwidth — spatial patterns (vision-like), temporal oscillations (audio-like), chemical gradients (olfaction-like), contact forces (touch-like) — and it can in principle accept bands humans lack, such as infrared or ultrasonic. If symbolic content reaches the system at all, the more consistent approach is for it to enter through the same sensory channels as everything else.
+DAERWEN's output is a **continuous state vector** derived from population statistics:
+- `familiarity`: how similar is the current situation to past experience?
+- `threat_level`: did similar situations cause high mortality before?
+- `spatial_memory`: where were resources / dangers located?
+- `novelty`: is this something the system has never encountered?
 
-This is the main reason DAERWEN does not look like any other AI project: it is trying to be the **substrate underneath symbolic intelligence**, not another re-implementation of symbolic intelligence.
+These signals are read by downstream modules (decision-making, planning) — not by humans directly.
+
+### DAERWEN is one module, not the whole brain
+
+| Brain Part | Function | DAERWEN? |
+|-----------|----------|----------|
+| Visual cortex | Process raw images | ❌ Use CNN (ResNet etc.) |
+| Auditory cortex | Process raw audio | ❌ Use audio models |
+| Thalamus | Route sensory signals | ❌ Separate attention/routing module |
+| **Hippocampus** | **Form and recall memories** | **✅ THIS IS DAERWEN** |
+| Basal ganglia | Select actions | ❌ Use RL agent |
+| Prefrontal cortex | Plan and reason | ❌ Use LLM |
+
+See [`docs/design/HIPPOCAMPUS_ARCHITECTURE.md`](docs/design/HIPPOCAMPUS_ARCHITECTURE.md) for the full architectural design.
 
 ---
 
 ## 🌟 What Makes This Different?
 
-Unlike traditional AI approaches:
-- ❌ No supervised training on datasets
-- ❌ No backpropagation or gradient descent
-- ❌ No hardcoded behaviors or reward functions
+Unlike neural network memory (replay buffers, weight matrices, embeddings):
+- ❌ No training phase — memories form through natural selection in real time
+- ❌ No backpropagation — adaptation is Darwinian, not gradient-based
+- ❌ No fixed capacity — population can grow or shrink with the environment
+- ❌ No catastrophic forgetting — old memories coexist with new ones (forgetting rate 0.010)
 
 Instead:
-- ✅ **Physics-driven**: 2D particle dynamics, chemical diffusion, energy conservation
-- ✅ **Chemistry-coupled**: Multi-species chemical reactions shape the environment
-- ✅ **Genetics-based**: Multi-layer gene expression (not direct genome→behavior mapping)
-- ✅ **Evolutionary learning**: Natural selection at population level
-- ✅ **Dual-process architecture**: Subconscious (ecology engine) + Conscious (LLM integration, planned)
+- ✅ **Population = memory**: gene frequencies encode past experience
+- ✅ **Lossy and abstract**: like real hippocampus, stores summaries not recordings
+- ✅ **Continuous operation**: runs 24/7, always integrating new experience
+- ✅ **Reconstructive recall**: querying memory returns a creative reconstruction, not a playback
+- ✅ **Emotional weighting**: stronger selection pressure = deeper memory imprint
 
 ---
 
@@ -165,39 +190,51 @@ This is not a limitation to hide — it is **part of the experiment**. If physic
 
 ## 🏗️ Architecture Overview
 
+### DAERWEN in a larger AI brain
+
 ```
-┌─────────────────────────────────────────┐
-│  ExternalInput (Environmental Control)  │
-└────────────┬────────────────────────────┘
-             │
-      ┌──────▼──────┐
-      │   Engine    │  ← 2D Physics + Chemistry + Genetics
-      │  (Core.py)  │  ← 24/7 Continuous Evolution
-      └──────┬──────┘
-             │
-      ┌──────▼──────────┐
-      │ SystemOutput    │  ← Visualization + Statistics
-      │ (Aggregated)    │  ← Emergence Detection
-      └──────┬──────────┘
-             │
-    ┌────────▼─────────┐
-    │  Controllers     │  ← State Aggregator
-    │  (Optional)      │  ← Predictive Controller (WIP)
-    └──────────────────┘
+Sensors → CNN (visual cortex) ──→ Feature vector ──→ DAERWEN (hippocampus)
+       → Audio model          ──→ Feature vector ─↗        │
+       → Other models         ──→ Feature vector ─↗    Memory state
+                                                        (5-10 floats)
+                                                            │
+                                                    Decision module
+                                                    (basal ganglia)
+                                                            │
+                                                      Action output
+```
+
+### DAERWEN internal architecture
+
+```
+Feature spikes (sparse, theta-rhythmic)
+        │
+┌───────▼──────────────────────────┐
+│  ExternalInput                   │  ← Receives pre-processed features
+├──────────────────────────────────┤
+│  Ecology Engine (core.py)        │  ← 2D particles + chemistry + genetics
+│  - 24/7 continuous evolution     │  ← Population = memory substrate
+│  - Gene expression (Rust/pyo3)   │  ← Uniform composition mapping
+│  - Chemical field dynamics       │
+├──────────────────────────────────┤
+│  SystemOutput                    │  ← Memory state vector
+│  - Population statistics         │  ← familiarity, threat, spatial, novelty
+│  - Chemical field state          │
+└──────────────────────────────────┘
 ```
 
 **Key Design Principle**: 
-> All external interaction goes through `ExternalInput`/`SystemOutput` interface. No direct manipulation of internal state.
+> DAERWEN is a memory module, not a complete brain. It receives abstract features and outputs memory state. All external interaction goes through `ExternalInput`/`SystemOutput`.
 
 ---
 
 ## 📚 Documentation
 
 ### For Researchers
+- [**Hippocampus Architecture Design**](docs/design/HIPPOCAMPUS_ARCHITECTURE.md) — Why DAERWEN is a hippocampus, I/O specification, memory mechanism
 - [AGI Vision & Roadmap](docs/AGI_VISION.md) — Emergence-driven path to AGI
 - [Genotype→Phenotype First Principles](docs/design/GENOTYPE_TO_PHENOTYPE_FIRST_PRINCIPLES.md) — Multi-layer expression theory
-- [Dual-Process AGI Architecture](docs/notes/DUAL_PROCESS_AGI.md) — Subconscious engine + conscious LLM design
-- [Unconscious Learning Test Suite](tests/benchmarks/unconscious_learning_suite.py) — Pattern extraction without explicit goals
+- [Dual-Process AGI Architecture](docs/notes/DUAL_PROCESS_AGI.md) — Brain module integration design
 
 ### For Engineers
 - [Core Overview](docs/CORE_OVERVIEW.md) — Technical architecture
@@ -352,7 +389,7 @@ It helps others discover this work and motivates continued development.
 ---
 
 **Status**: Active research (as of April 2026)  
-**Version**: 3.5 — initial implementation of the closed theoretical framework; learning properties observed, designer's fingerprints still visible  
+**Version**: 3.5 — artificial hippocampus module with validated memory properties (forgetting 0.010, +16.3% over physics baseline, catastrophe recovery 1.0)  
 **Maintainer**: Hou Zehao ([@Chunsisisi](https://github.com/Chunsisisi))
 
 ---
