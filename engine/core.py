@@ -86,6 +86,45 @@ PHENOTYPE_KEYS = [
     'atp_absorption_rate',        # ATP 吸收系数 [0.05, 0.25]
 ]
 
+# 每个表型的取值范围（与 chem_sim_genes 的组成映射一致）。用于正交（位置）编码。
+PHENOTYPE_RANGES = {
+    'field_interaction':        (-1.0, 1.0),
+    'movement_response':        (0.0, 2.0),
+    'interaction_mode':         (-1.0, 1.0),
+    'replication_threshold':    (0.5, 4.0),
+    'conversion_threshold':     (0.0, 1.0),
+    'interaction_threshold':    (0.0, 1.0),
+    'cooperation_threshold':    (0.0, 1.0),
+    'aging_resistance':         (0.0, 2.0),
+    'inhibitor_sensitivity':    (0.0, 0.1),
+    'chemotaxis_gene_strength': (0.0, 0.15),
+    'replication_energy_split': (0.3, 0.7),
+    'atp_absorption_rate':      (0.05, 0.25),
+}
+
+
+def express_phenotypes_orthogonal(genome: np.ndarray) -> Dict[str, float]:
+    """位置编码：把基因组切成 12 段互不重叠的片段，每段独立驱动一个表型。
+
+    与"全局碱基频率"映射不同，一段的突变只影响一个表型，因此 12 个表型可以
+    独立进化（有效维度接近 12，而非塌缩到 3）。片段均值 /3 归一到 [0,1] 后按
+    各表型范围插值；随机基因组下均值 ~1.5 → 0.5，落在范围中点，与原版行为对齐。
+    """
+    g = np.asarray(genome)
+    n = len(g)
+    keys = list(PHENOTYPE_RANGES.keys())
+    k = len(keys)
+    bounds = np.linspace(0, n, k + 1).astype(int)
+    out = {}
+    for i, key in enumerate(keys):
+        seg = g[bounds[i]:bounds[i + 1]]
+        frac = float(np.mean(seg) / 3.0) if seg.size else 0.5
+        frac = min(1.0, max(0.0, frac))
+        lo, hi = PHENOTYPE_RANGES[key]
+        out[key] = lo + (hi - lo) * frac
+    return out
+
+
 def _to_xp(array: Any, dtype: Optional[Any] = None):
     if GPU_AVAILABLE:
         return xp.asarray(array, dtype=dtype)
@@ -102,7 +141,14 @@ class Ecology2DConfig:
     # 空间参数
     world_size: int = 200           # 2D正方形世界
     n_particles: int = 5000         # 粒子数量
-    
+
+    # 可复现性：None = 每次随机（旧行为）；给定整数 = 确定性重放
+    seed: Optional[int] = None
+
+    # 承载上限（可选，修复 Finding 5：原引擎无密度制动，恒定供能会无限增殖）。
+    # None = 不封顶（原行为）；给定整数 = 超出时无偏随机剔除，只封顶不改变基因频率。
+    carrying_capacity: Optional[int] = None
+
     # 物理参数
     dt: float = 0.1                 # 时间步长
     diffusion_rate: float = 0.1     # 扩散率
@@ -148,6 +194,58 @@ class Ecology2DConfig:
     # === 第二层：守恒参数（原隐式，现显式化）===
     death_waste_release: float = 0.5    # 死亡时能量转废物比例（修复守恒 bug）
     predation_heat_loss: float = 0.6    # 捕食能量热损失率（原隐式 = 1 - 0.4）
+
+    # === 实验性：可进化的多通道感知（默认关闭，opt-in）===
+    # 关闭时行为与原版完全一致（运动只响应 ATP 梯度）。
+    # 开启时，运动额外响应一个由基因独立编码的"信号亲和度"作用在 signal_channel 上，
+    # 使系统在原理上有可能学会跟随任意（非 ATP）信号——用于验证"信号→奖励关联"是否可涌现。
+    evolvable_sensing: bool = False
+    signal_channel: int = 4             # 作为"任意信号"的通道（3..10 本身惰性，不影响能量/存活）
+
+    # === 基因表达方式（默认沿用原版组成映射；正交编码为可选项）===
+    # False（默认，原行为）：用"全局碱基频率"映射（12 表型有效自由度约 3，见 FINDINGS 第7条）。
+    # True（可选，推荐用于需要独立表型时）：每个表型由基因组一段互不重叠片段编码，
+    #   12 个表型可独立进化（有效维度 ~12），种群更健康。切换会改变历史数字，故不设默认。
+    orthogonal_expression: bool = False
+
+    # === 实验性：富通道基质（默认关闭，opt-in；治本方向，见 FINDINGS 根因分析）===
+    # 关闭时通道 3..10 完全惰性（原行为）。开启时，每个粒子带一条可独立进化的
+    # channel_genes 向量（每个惰性通道一个基因，∈[-1,1]，作为独立修饰位点遗传+突变）：
+    #   基因>0 → 该通道对此粒子既"吸引"(趋化)又"营养"(供能)；<0 → 既"排斥"又"有毒"。
+    # 这样把因果独立的环境轴从 ~3 扩到 ~11，用于同时改善记忆容量与信号→奖励关联。
+    rich_channels: bool = False
+    rich_sense_scale: float = 0.10      # 富通道趋化力系数
+    rich_metab_scale: float = 0.02      # 富通道供能/毒性系数（小，配合 carrying_capacity 防爆炸）
+    # 纯线索通道：可被感知(channel_genes 驱动趋化)但不参与代谢(不供能/不产毒)。
+    # 用于干净地测试"任意线索→独立奖励"的联想（避免"你跟随的通道本身就是食物"的混淆）。
+    cue_channels: tuple = ()
+
+    # === 实验性：在世学习/可塑性（默认关闭，opt-in；针对 Finding 12b 的开放问题）===
+    # 开启时每个粒子带一条"习得线索权重"plastic_cue_w，在一代之内按奖励调制的 Hebbian 规则更新：
+    #   plastic_cue_w[c] += plasticity_lr · Δenergy · local_conc[c]
+    # （线索与能量增益重合→更吸引；与饥饿重合→更排斥）。该权重叠加到富通道趋化上，
+    # 使个体能在世学会"线索→奖励"的关联，而不必等群体世代选择。需配合 rich_channels。
+    lifetime_plasticity: bool = False
+    plasticity_lr: float = 0.05
+    plastic_inherit: float = 0.0        # 子代继承亲代已学权重的比例（0=纯在世学习/每代重学）
+
+    # === 实验性：可进化的学习率（默认关闭，opt-in；针对 b——学习本身能否从选择涌现）===
+    # 开启时不再用固定 plasticity_lr，而是把"学习率"编码进一个可遗传、可突变的基因
+    #   plasticity_gene（随机初始化，含负/零/正），作为该粒子的有效学习率。
+    # 若在"可学习"的世界里 plasticity_gene 从随机进化到正值、而在"不可学习"世界里不进化，
+    # 就说明"学习"这件事是被选择发现的，而非设计者外挂——学习从选择中涌现。
+    evolvable_plasticity: bool = False
+    plasticity_gene_init: float = 3.0   # 初始化范围 [-init, +init]，无偏地含不学/反学/正学
+
+    # === 实验性：化学涌现的学习（默认关闭，opt-in；第三步——让学习"机制"本身涌现）===
+    # 每个粒子有一个内部分子 mem，按通用双分子质量作用动力学演化：
+    #   d_mem = a·(cue·rew) + b·cue + c·rew − d·mem     （cue=局部线索浓度, rew=本步Δenergy）
+    # mem 通过系数 e 耦合到"跟随线索"的运动。系数 [a,b,c,d,e] 全部基因编码、随机初始化、可进化。
+    # 我不指定它是"符合检测"——只给通用双线性反应，若选择把 a>0（用上 cue·rew 符合项）、
+    # e>0（耦合）进化出来，则联想学习的机制是从进化出的化学里涌现的，而非手写公式。需配合 rich_channels+cue_channels。
+    chemical_learning: bool = False
+    rxn_gene_init: float = 1.0           # 反应系数初始化范围 [-init, +init]
+    chem_mem_scale: float = 0.10         # mem 耦合到运动的整体系数
 
 
 
@@ -199,19 +297,41 @@ class Particle2D:
     """2D粒子 - 最小生命单元"""
     
     def __init__(self, particle_id: int, position: np.ndarray, genome: np.ndarray,
-                 system_ref: Optional["Ecology2DSystem"] = None):
+                 system_ref: Optional["Ecology2DSystem"] = None,
+                 signal_gene: float = 0.0,
+                 channel_genes: Optional[np.ndarray] = None,
+                 plastic_cue_w: Optional[np.ndarray] = None,
+                 plasticity_gene: float = 0.0,
+                 rxn_genes: Optional[np.ndarray] = None):
         self.id = particle_id
         self.position = position  # (x, y)
         self.velocity = np.zeros(2)
         self.genome = genome      # 四碱基序列 [0,1,2,3] = [A,T,G,C]
         self._system_ref = system_ref
-        
+
+        # 独立修饰位点（仅 evolvable_sensing 时使用）：不进入碱基链、单独遗传+突变，
+        # 与全局碱基组成正交，用于干净地测试"信号→奖励"能否被进化学到。
+        self.signal_gene = float(signal_gene)
+
+        # 富通道基因向量（仅 rich_channels 时使用）：每个惰性通道一个 ∈[-1,1] 的独立基因。
+        self.channel_genes = channel_genes
+
+        # 在世习得的线索权重（仅 lifetime_plasticity 时使用），按奖励调制 Hebbian 更新。
+        self.plastic_cue_w = plastic_cue_w
+
+        # 可进化的学习率基因（仅 evolvable_plasticity 时使用）：遗传+突变，决定本粒子的有效学习率。
+        self.plasticity_gene = float(plasticity_gene)
+
+        # 化学涌现学习（仅 chemical_learning 时使用）：内部分子 mem + 可进化反应系数 [a,b,c,d,e]。
+        self.mem = 0.0
+        self.rxn_genes = rxn_genes
+
         # 生物状态
         self.energy = 1.0
         self.age = 0
         self.generation = 0
         self.alive = True
-        
+
         # 基因表达产物（表型）
         self.phenotype = self._express_genes()
 
@@ -229,8 +349,11 @@ class Particle2D:
         Behavior is further modulated by local chemical environment
         (atp/waste/nutrient gradient) via env_factor.
         """
-        from engine.chem_sim_genes import express_phenotypes_from_composition
-        phenotype = express_phenotypes_from_composition(self.genome)
+        if self._system_ref is not None and getattr(self._system_ref.config, 'orthogonal_expression', False):
+            phenotype = express_phenotypes_orthogonal(self.genome)
+        else:
+            from engine.chem_sim_genes import express_phenotypes_from_composition
+            phenotype = express_phenotypes_from_composition(self.genome)
 
         # Environmental modulation (unchanged from before)
         if self._system_ref is not None:
@@ -243,6 +366,12 @@ class Particle2D:
             for key in phenotype.keys():
                 if key not in {'aging_resistance', 'movement_response', 'interaction_mode'}:
                     phenotype[key] *= env_factor
+
+        # 可进化的信号亲和度（opt-in）：由基因组末端 4 碱基这一"局部密码子"独立编码，
+        # 与基于全局碱基频率的其它表型近似正交，让进化能在不牵动其它表型的情况下调节它。
+        # 映射到 [-1, 1]；作为方向权重，不受 env_factor 缩放。
+        if self._system_ref is not None and getattr(self._system_ref.config, 'evolvable_sensing', False):
+            phenotype['signal_affinity'] = float(self.signal_gene)
         return phenotype
     
     
@@ -523,6 +652,13 @@ class ChemicalField2D:
         self._cached_gradient = (grad_x, grad_y)
         return grad_x, grad_y
 
+    def get_channel_gradient(self, channel: int, time_step: int) -> Tuple[np.ndarray, np.ndarray]:
+        """任意通道的空间梯度（不缓存；仅用于 evolvable_sensing 实验路径）。"""
+        layer = self.concentrations[:, :, channel]
+        grad_x = 0.5 * (xp.roll(layer, -1, axis=0) - xp.roll(layer, 1, axis=0))
+        grad_y = 0.5 * (xp.roll(layer, -1, axis=1) - xp.roll(layer, 1, axis=1))
+        return grad_x, grad_y
+
     def sample_gradient(self, position: np.ndarray, grad_x: np.ndarray, grad_y: np.ndarray) -> np.ndarray:
         return np.array([
             self._sample_scalar_field(grad_x, position),
@@ -565,8 +701,17 @@ class Ecology2DSystem:
     def __init__(self, config: Ecology2DConfig):
         self.config = config
         self.time_step = 0
-        self.rng = np.random.default_rng()
-        
+        self.rng = np.random.default_rng(config.seed)
+
+        # 有效承载上限（Finding 5 修复）：None → 不封顶（原行为）
+        self.carrying_capacity = config.carrying_capacity
+
+        # 富通道：因果惰性的通道集合（排除 ATP=0/营养=1/抑制剂=2/废物=末位），供 rich_channels 激活
+        n = config.n_chemical_species
+        reserved = {0, min(1, n - 1), min(2, n - 1), n - 1}
+        self.inert_channels = [c for c in range(n) if c not in reserved]
+        self._cue_channels_set = set(config.cue_channels)   # 纯线索：感知但不代谢
+
         # 化学场
         self.chemical_field = ChemicalField2D(
             config.world_size,
@@ -615,8 +760,30 @@ class Ecology2DSystem:
             
             # 随机基因组（四碱基）
             genome = self.rng.integers(0, 4, size=self.config.genome_length)
-            
-            particle = Particle2D(self.next_particle_id, position, genome, self)
+
+            init_signal_gene = float(self.rng.uniform(-1.0, 1.0)) if self.config.evolvable_sensing else 0.0
+            init_channel_genes = (
+                self.rng.uniform(-1.0, 1.0, size=len(self.inert_channels))
+                if self.config.rich_channels else None
+            )
+            init_plastic = (
+                np.zeros(len(self.inert_channels))
+                if self.config.lifetime_plasticity else None
+            )
+            init_plast_gene = (
+                float(self.rng.uniform(-self.config.plasticity_gene_init, self.config.plasticity_gene_init))
+                if self.config.evolvable_plasticity else 0.0
+            )
+            init_rxn = (
+                self.rng.uniform(-self.config.rxn_gene_init, self.config.rxn_gene_init, size=5)
+                if self.config.chemical_learning else None
+            )
+            particle = Particle2D(self.next_particle_id, position, genome, self,
+                                  signal_gene=init_signal_gene,
+                                  channel_genes=init_channel_genes,
+                                  plastic_cue_w=init_plastic,
+                                  plasticity_gene=init_plast_gene,
+                                  rxn_genes=init_rxn)
             self.particles.append(particle)
             self.next_particle_id += 1
     
@@ -707,7 +874,10 @@ class Ecology2DSystem:
         alive_particles = [p for p in self.particles if p.alive]
         state = self._build_particle_state(alive_particles)
         self._particle_death(alive_particles, state)
-        
+
+        # 7.5 承载上限：密度制动（Finding 5 修复），无偏随机剔除，不改变基因频率
+        self._apply_carrying_capacity()
+
         # 8. 统计
         alive_particles = [p for p in self.particles if p.alive]
         state = self._build_particle_state(alive_particles)
@@ -729,6 +899,7 @@ class Ecology2DSystem:
         ages = state['ages']
 
         for idx, (particle, local_field) in enumerate(zip(alive_particles, local_fields)):
+            energy_before_metab = particle.energy   # 供在世学习计算 Δenergy
             absorption_rate = field_interactions[idx]
 
             if absorption_rate > 0:
@@ -779,7 +950,37 @@ class Ecology2DSystem:
             if inhibitor_level > 0.01:
                 penalty = inhibitor_level * particle.phenotype.get('inhibitor_sensitivity', self.config.inhibitor_damage_coeff)
                 particle.energy -= penalty
-            
+
+            # 富通道代谢：基因>0 的通道供能、基因<0 的通道有毒，强度随局部浓度。
+            # cue_channels 中的通道被跳过（纯线索：可感知但不供能/不产毒）。
+            if self.config.rich_channels and particle.channel_genes is not None:
+                cg = particle.channel_genes
+                rich_gain = 0.0
+                for k, c in enumerate(self.inert_channels):
+                    if c in self._cue_channels_set:
+                        continue
+                    rich_gain += float(cg[k]) * float(local_field[c])
+                particle.energy += self.config.rich_metab_scale * rich_gain
+
+            # 在世学习：奖励调制 Hebbian —— 线索浓度 × 本步能量变化，更新习得权重
+            if self.config.lifetime_plasticity and particle.plastic_cue_w is not None:
+                delta_e = particle.energy - energy_before_metab
+                if delta_e != 0.0:
+                    # 学习率：可进化时用遗传基因（"学习能力"本身受选择），否则用固定配置
+                    lr = particle.plasticity_gene if self.config.evolvable_plasticity else self.config.plasticity_lr
+                    for k, c in enumerate(self.inert_channels):
+                        particle.plastic_cue_w[k] += lr * delta_e * float(local_field[c])
+                    np.clip(particle.plastic_cue_w, -2.0, 2.0, out=particle.plastic_cue_w)
+
+            # 化学涌现学习：内部分子 mem 按通用双分子质量作用动力学演化（系数为进化基因）
+            if self.config.chemical_learning and particle.rxn_genes is not None and self._cue_channels_set:
+                cue_ch = next(iter(self._cue_channels_set))
+                cue = float(local_field[cue_ch])
+                rew = particle.energy - energy_before_metab       # 本步能量变化
+                a, b, c, d, e = particle.rxn_genes
+                d_mem = a * cue * rew + b * cue + c * rew - d * particle.mem
+                particle.mem = float(np.clip(particle.mem + d_mem, -5.0, 5.0))
+
             particle.age += 1
             energies[idx] = particle.energy
             ages[idx] = particle.age
@@ -962,6 +1163,22 @@ class Ecology2DSystem:
         field_interactions = state['phenotypes']['field_interaction']
         movement_responses = state['phenotypes']['movement_response']
 
+        # opt-in：额外采样信号通道梯度，供可进化的多通道感知使用
+        signal_gradients = None
+        if self.config.evolvable_sensing:
+            sig_gx, sig_gy = self.chemical_field.get_channel_gradient(
+                self.config.signal_channel, self.time_step)
+            signal_gradients = self.chemical_field.sample_gradient_batch(positions, sig_gx, sig_gy)
+
+        # 富通道：预采样所有惰性通道的梯度 [N, n_inert, 2]
+        rich_gradients = None
+        if self.config.rich_channels and self.inert_channels:
+            stack = []
+            for c in self.inert_channels:
+                gx, gy = self.chemical_field.get_channel_gradient(c, self.time_step)
+                stack.append(self.chemical_field.sample_gradient_batch(positions, gx, gy))
+            rich_gradients = np.stack(stack, axis=1)  # [N, n_inert, 2]
+
         for idx, (particle, gradient) in enumerate(zip(alive_particles, gradients)):
             movement_resp = self._effective_movement_response(movement_responses[idx], local_fields[idx])
             if movement_resp <= 0:
@@ -969,9 +1186,35 @@ class Ecology2DSystem:
 
             random_force = self.rng.normal(0, self.config.brownian_strength, size=2)
             field_interaction = field_interactions[idx]
-            gradient_force = gradient * field_interaction * movement_resp * particle.phenotype.get('chemotaxis_gene_strength', self.config.chemotaxis_strength)
+            chemo_strength = particle.phenotype.get('chemotaxis_gene_strength', self.config.chemotaxis_strength)
+            gradient_force = gradient * field_interaction * movement_resp * chemo_strength
 
-            particle.velocity += (random_force + gradient_force) * dt
+            # 可进化的信号响应：同一套趋化机制作用在任意信号通道上，权重由 signal_affinity 基因决定
+            signal_force = 0.0
+            if signal_gradients is not None:
+                signal_affinity = particle.phenotype.get('signal_affinity', 0.0)
+                signal_force = signal_gradients[idx] * signal_affinity * movement_resp * chemo_strength
+
+            # 富通道趋化：Σ_c w_c · ∇通道_c；w = 进化基因 channel_genes + 在世习得 plastic_cue_w
+            rich_force = 0.0
+            if rich_gradients is not None and particle.channel_genes is not None:
+                w_eff = particle.channel_genes
+                if self.config.lifetime_plasticity and particle.plastic_cue_w is not None:
+                    w_eff = w_eff + particle.plastic_cue_w
+                w = w_eff[:, np.newaxis]                               # [n_inert, 1]
+                rich_force = (w * rich_gradients[idx]).sum(axis=0) * movement_resp * self.config.rich_sense_scale
+
+            # 化学涌现学习：内部分子 mem 经进化耦合系数 e 驱动"跟随线索"的运动
+            chem_force = 0.0
+            if (self.config.chemical_learning and particle.rxn_genes is not None
+                    and rich_gradients is not None and self._cue_channels_set):
+                cue_ch = next(iter(self._cue_channels_set))
+                if cue_ch in self.inert_channels:
+                    ci = self.inert_channels.index(cue_ch)
+                    e = particle.rxn_genes[4]
+                    chem_force = (e * particle.mem) * rich_gradients[idx][ci] * movement_resp * self.config.chem_mem_scale
+
+            particle.velocity += (random_force + gradient_force + signal_force + rich_force + chem_force) * dt
             particle.velocity *= self.config.velocity_damping
             particle.position += particle.velocity * dt
             particle.position = np.mod(particle.position, self.config.world_size)
@@ -1059,11 +1302,38 @@ class Ecology2DSystem:
                         offspring_genome[delete_pos + delete_length:]
                     ])
             
+            # 修饰位点：子代继承亲代 signal_gene，加高斯突变（与碱基突变独立）
+            child_signal_gene = 0.0
+            if self.config.evolvable_sensing:
+                child_signal_gene = float(np.clip(
+                    particle.signal_gene + self.rng.normal(0, 0.05), -1.0, 1.0))
+            child_channel_genes = None
+            if self.config.rich_channels and particle.channel_genes is not None:
+                child_channel_genes = np.clip(
+                    particle.channel_genes + self.rng.normal(0, 0.05, size=particle.channel_genes.shape),
+                    -1.0, 1.0)
+            child_plastic = None
+            if self.config.lifetime_plasticity and particle.plastic_cue_w is not None:
+                # 子代按 plastic_inherit 比例继承亲代已学权重（0=每代从零重学）
+                child_plastic = self.config.plastic_inherit * particle.plastic_cue_w.copy()
+            child_plast_gene = 0.0
+            if self.config.evolvable_plasticity:
+                # 学习率基因遗传 + 高斯突变（这是"学习能力"本身在被选择）
+                child_plast_gene = float(particle.plasticity_gene + self.rng.normal(0, 0.15))
+            child_rxn = None
+            if self.config.chemical_learning and particle.rxn_genes is not None:
+                # 反应系数遗传 + 高斯突变（"学习机制的形式"在被选择）
+                child_rxn = particle.rxn_genes + self.rng.normal(0, 0.08, size=particle.rxn_genes.shape)
             offspring = Particle2D(
                 self.next_particle_id,
                 offspring_position,
                 offspring_genome,
-                self
+                self,
+                signal_gene=child_signal_gene,
+                channel_genes=child_channel_genes,
+                plastic_cue_w=child_plastic,
+                plasticity_gene=child_plast_gene,
+                rxn_genes=child_rxn,
             )
             self.next_particle_id += 1
             offspring.generation = particle.generation + 1
@@ -1079,6 +1349,25 @@ class Ecology2DSystem:
         # 添加新粒子
         self.particles.extend(new_particles)
     
+    def _apply_carrying_capacity(self):
+        """密度制动：living 超过 carrying_capacity 时，无偏随机剔除多余个体。
+        随机剔除对基因频率无偏，因此不干扰选择/进化，只是给种群封顶、防止
+        恒定供能下的无限增殖（Finding 5）。死亡释放废物，保持能量守恒一致。"""
+        cap = self.carrying_capacity
+        if cap is None or cap <= 0:
+            return
+        alive = [p for p in self.particles if p.alive]
+        if len(alive) <= cap:
+            return
+        n_kill = len(alive) - cap
+        victims = self.rng.choice(len(alive), size=n_kill, replace=False)
+        for i in np.atleast_1d(victims):
+            p = alive[int(i)]
+            p.alive = False
+            self.stats['death_events'] += 1
+            waste = max(0.0, p.energy) * self.config.death_waste_release
+            self.chemical_field.produce(p.position, self.chemical_field.waste_index, waste)
+
     def _particle_death(self, alive_particles: List[Particle2D], state: Dict[str, Any]):
         """粒子死亡 - 能量耗尽或衰老损伤"""
         if not alive_particles:

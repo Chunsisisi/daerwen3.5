@@ -136,6 +136,95 @@ This is honest about which parts are chemistry and which parts remain abstract.
 
 ## Recent changes (chronological log)
 
+- **2026-07-19 (root-cause fix)**: Added opt-in `rich_channels` — each particle gets
+  an independently-evolvable gene per otherwise-inert channel (attractive+nutritious
+  if >0, repulsive+toxic if <0), turning ~8 dead channels into causally active ones
+  that steer movement and affect survival. Payoff (Finding 12): 6 environments that
+  the default engine cannot remember at all (decode 0.167 = chance, RSA 1.00) become
+  a decodable, decaying genetic memory (decode 0.625, RSA 0.31). This directly
+  attacks the root bottleneck behind low memory capacity and no associative learning
+  (Findings 4/7/9b). Test: `tests/honest/memory_capacity_rich.py`. Default off.
+  But it does NOT unlock associative recall (Finding 12b): re-running the sign-flip
+  test under rich_channels (incl. a pure `cue_channels` cue that is sensable but not
+  food) still shows no association. Refined diagnosis — recall is blocked by the
+  learning rule (positional/survival selection never makes a predictive cue
+  necessary), not by sensing. So: memory *capacity* is a substrate problem (fixed);
+  associative *recall* is a learning-rule problem (open, would need within-lifetime
+  plasticity). Test: `tests/honest/memory_association_rich.py`.
+- **2026-07-19 (recall achieved, with a caveat)**: Added opt-in `lifetime_plasticity`
+  — a reward-modulated Hebbian rule lets each particle learn a cue-weight within its
+  life. Re-running the sign-flip test, the *learned* weight consistently tracks the
+  cue→reward contingency (median L−R +0.081, 5/6 seeds; genetics alone was −0.079,
+  2/6). So associative recall — the half population genetics could not do — is now
+  demonstrated (Finding 13). Caveat: modest magnitude, and it is a **hand-designed
+  learning rule (an added prior)**, so recall is shown *achievable/engineered*, not
+  *emergent* from the substrate. Default off.
+- **2026-07-22 (learning itself emerges)**: Made the learning rate a heritable,
+  mutating gene (`evolvable_plasticity`) instead of a hand-set constant. In a world
+  that changes faster than generations (oscillating reward), the learning-rate gene
+  evolves UP from random init (≈2.3) and the population learns to follow the cue; in
+  a STATIC world it decays to ≈0.46 (genetic assimilation); in a noise world it
+  plateaus mid-range. So the *capacity/decision to learn* emerges from selection —
+  the classic Baldwin effect, reproduced from the substrate (Finding 14). Remaining
+  prior: the reward-modulated Hebbian *form* is still hand-designed. Test:
+  `tests/honest/evolution_of_learning.py`. Default off.
+- **2026-07-22 (third step — honest negative)**: Tried to make the learning
+  *mechanism* itself emerge: `chemical_learning` gives each particle an internal
+  molecule evolving by a generic bilinear reaction with 5 evolvable coefficients;
+  if evolution wired up a coincidence-detector, learning would emerge from
+  chemistry. It did NOT beat a no-learning control at tracking a moving reward
+  (Finding 15). Reason (sharpens the whole arc): positional selection + local
+  reproduction let the population track resources *without* individual learning, so
+  the fitness value of learning is too low for its mechanism to self-assemble. The
+  emergence loop's remaining open problem is now precisely stated: a task where an
+  individual must use a within-lifetime learned association that local reproduction
+  cannot shortcut. Test: `tests/honest/emergent_learning_chem.py`. Default off.
+- **2026-07-19**: **First positive, properly-controlled memory result** (borrowed
+  neuroscience method — see [`tests/honest/FINDINGS.md`](tests/honest/FINDINGS.md)
+  Finding 9). A leave-one-seed-out cross-validated linear decoder reads *which of 3
+  environments the population was recently in* from the **heritable gene-frequency
+  vector** at 0.75 (chance 0.33), decaying to chance by ~800 steps — a real
+  forgetting curve; shuffle control at chance. So "population genetics is memory"
+  holds empirically in the **storage/retention** sense (distinct from associative
+  recall, which Finding 6 shows does not emerge). New test:
+  `tests/honest/population_decoding.py`. Follow-ups (Findings 9b–11): the memory is
+  **low-capacity** — it stores a few coarse regimes but collapses to ~chance for a
+  fine 6-way distinction (RSA: several environments genetically identical); it shows
+  genuine **"savings"** (a latent trace speeds relearning of a forgotten environment,
+  a recall-adjacent positive); but shows **no "emotional weighting"** (memory depth
+  is flat across selection strength). Tests: `memory_forgetting_deep.py`,
+  `memory_savings.py`, `memory_emotional_weighting.py`.
+- **2026-07-17**: Added three **opt-in** engine capabilities from the findings
+  (defaults unchanged, so existing results/behaviour are preserved): `seed` for
+  reproducibility (Finding 1); `orthogonal_expression` to fix the 3-DOF phenotype
+  collapse when independent traits are needed (Finding 7/8); `carrying_capacity`
+  to bound runaway growth (Finding 5). Also added `tests/honest/` — a reproducible,
+  multi-seed, distribution-based test suite. The hippocampus/memory research goal
+  and positioning are unchanged; these are tools for pursuing it more rigorously.
+- **2026-07-15**: Constructive follow-up (see [`tests/honest/FINDINGS.md`](tests/honest/FINDINGS.md)
+  Finding 6). Added opt-in `evolvable_sensing` — a pathway that lets movement
+  respond to an arbitrary signal channel via an evolvable `signal_affinity` gene
+  (default off = byte-identical to before). Tested whether evolution can learn a
+  signal→reward association, with a sign-flip control (reward co-located vs
+  opposite to the signal). **No sign flip across four regimes** (tail-gene,
+  independent modifier locus, high leverage, survival-critical reward): the gene
+  is co-opted by orthogonal pressures (composition hitchhiking, then dispersal),
+  never by the reward contingency. Removing the sensory prior is necessary but not
+  sufficient; the barrier is layered (non-orthogonal gene encoding + weak
+  chemotaxis vs noise + position/fitness decoupling).
+- **2026-07-14**: Independent reproducible re-verification (see
+  [`tests/honest/FINDINGS.md`](tests/honest/FINDINGS.md)). Added
+  `Ecology2DConfig.seed` — the engine previously used an unseeded RNG, so no
+  prior number was reproducible. Re-tested headline claims with seeded, 8-seed,
+  paired stats: evolution beats physics by a **median +0.054 absolute (~+9%),
+  not +16.3%** (that was one draw from a wide distribution). The advantage
+  reduces to enriching **one gene** (`field_interaction`); the `mutation_rate=0`
+  "physics baseline" already contains natural selection, so it is not "no
+  evolution". Proved deterministically that **movement direction depends on the
+  ATP channel alone** (channels 3–10 causally inert) — the proposed
+  "signal–reward decoupling" capability is structurally impossible without a new
+  sensory prior. Also: the ecology has **no carrying capacity** (population
+  diverges under sustained energy input).
 - **2026-04-17**: Avalanche CL comparison (Split MNIST, vanilla MLP + Naive strategy): neural net baseline shows 99.2% forgetting rate (catastrophic); DAERWEN's native benchmark shows 1.0% forgetting rate (~100× lower). Paradigm mismatch noted — vanilla NN does image classification, DAERWEN does population ecology; direct comparison not meaningful, but forgetting characteristic is dramatically different.
 - **2026-04-17**: First stable positive improvement over physics baseline: **+16.3%** (previous OLD-gene runs were between -35% and +6%). The switch to uniform composition-based gene expression (less designer-trap) ALSO happens to make the system learn above physics — not worse, slightly better.
 - **2026-04-17**: Removed Level 2 chem_sim energy substrate code (use_chem_sim_energy flag + 7 config params). Confirmed via fair A/B test that chem_sim alone cannot sustain the system (ATP atoms polymerize into uneatable chains). Kept chem_sim_rs as the gene-expression layer (Level 1, works).

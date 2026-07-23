@@ -43,3 +43,6 @@ checkpoints/
 # OS
 .DS_Store
 Thumbs.db
+
+# honest test outputs (regenerable)
+tests/honest/*.json
