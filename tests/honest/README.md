@@ -30,6 +30,17 @@ CUDA_VISIBLE_DEVICES=-1 python tests/honest/<script>.py
 | `emergent_learning_chem.py` | Can the learning *mechanism* emerge from generic chemistry? | 15 |
 | `operant_voltage.py` | Can the system's output be shaped by its consequences? (operant, yoked control) | 16 |
 
+### Related: the author's own precursor honest tests
+
+Before this suite, the author was already stress-testing the same claims in
+[`../benchmarks/`](../benchmarks/) — same "is it real or an artifact?" discipline,
+with controls (frozen/non-evolving baselines):
+`forgetting_deep_test.py`, `forgetting_intensive.py` (is the 0.010 forgetting rate
+real?), `memory_vs_tracking.py` (does spatial bias persist after the gradient is
+removed, or was it just tracking?), `memory_response_test.py` (does a trained
+population respond differently to a weak probe than a naive one?). The `honest/`
+suite continues and sharpens this line.
+
 **One-line summary of what these establish:** population genetics gives emergent,
 lossy, low-capacity *storage* memory (with forgetting and savings) and can even
 evolve the *decision* to learn — but individual *associative recall* does not emerge,
